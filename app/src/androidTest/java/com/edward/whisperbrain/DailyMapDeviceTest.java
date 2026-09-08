@@ -20,14 +20,14 @@ import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public class DailyMapDeviceTest {
-    private Context context;private NotebookStore store;private String day,zone;private long start;
+    private Context context;private NotebookStore store;private String day,zone,namespace;private long start;
     @Before public void prepare()throws Exception {
         context=InstrumentationRegistry.getInstrumentation().getTargetContext();store=NotebookStore.get(context);DailyMapAi.cancel();WhatsAppCapture.setEnabled(context,false);clear();new Vault(context).forgetKey();
-        zone=ZoneId.systemDefault().getId();day=LocalDate.now(ZoneId.of(zone)).toString();start=DailyMapData.start(day,zone);
+        namespace=UUID.randomUUID().toString();zone=ZoneId.systemDefault().getId();day=LocalDate.now(ZoneId.of(zone)).toString();start=DailyMapData.start(day,zone);
     }
     private void clear()throws Exception {JSONArray sessions=store.sessions();for(int i=0;i<sessions.length();i++)store.deleteSession(sessions.getJSONObject(i).getString("id"));}
     private void capture(String chat,String thread,String text,long time)throws Exception {
-        WhatsAppNotice notice=new WhatsAppNotice("com.whatsapp",thread,chat,"Contato de exemplo","example",text,time,false,"message");assertEquals(1,store.captureNotifications(List.of(notice),start-1,time+1000));
+        WhatsAppNotice notice=new WhatsAppNotice("com.whatsapp",namespace+":"+thread,chat,"Contato de exemplo","example",text,time,false,"message");assertEquals(1,store.captureNotifications(List.of(notice),start-1,time+1000));
     }
     private JSONObject input()throws Exception {return DailyMapData.input(store.dailyNotifications(day,zone),day,zone);}
     private JSONObject topic(String id,String label,String summary,String... refs)throws Exception {return new JSONObject().put("id",id).put("label",label).put("summary",summary).put("reason","Solicitação mencionada nas notificações recebidas.").put("source_ids",new JSONArray(Arrays.asList(refs)));}
