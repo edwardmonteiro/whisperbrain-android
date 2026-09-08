@@ -1,6 +1,6 @@
 # WhisperBrain — caderno local com IA e áudio
 
-Versão **0.3.0-alpha**, em validação. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
+Versão **0.3.0-alpha**, compilada e validada em emulador Android 16. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
 Desenvolvido e compilado na nuvem para uso de quem só tem um telefone.
 
 ## O modelo do caderno
@@ -117,16 +117,21 @@ A chave da API é inserida somente no app. A compilação e os testes não preci
 
 ## Validação
 
-A validação da versão 0.3 será registrada após o build. Os resultados abaixo são da base 0.2.
+Veja `VALIDATION.json` para os resultados do código usado neste APK.
+O [build da versão 0.3](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34185332246) passou:
+26 testes JVM, 16 testes Android em emulador Android 16 (API 36) e 29 verificações de regras de intervenção.
+O lint terminou sem erros, com 28 avisos. As telas inicial e de captura do WhatsApp foram conferidas visualmente.
 
-Veja `VALIDATION.json` para o commit e os resultados reais do build.
-O [build de origem do APK](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34180888916) passou:
-20 testes JVM, 6 testes Android em emulador Android 15 e 29 verificações de regras de intervenção.
-As [quatro telas do caderno e dos grafos](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34181343265) também foram conferidas visualmente, com o mesmo código de produção.
-O lint terminou sem erros, com 24 avisos. A assinatura final foi verificada e os 111 arquivos de conteúdo do APK foram preservados.
-O workflow executa regras de intervenção, testes de parsing/grafo/protocolo e testes Android em emulador:
-escrita sem microfone ou API, persistência criptografada, exclusão de ligações, backup/importação com áudio e renderização do grafo.
-Conectividade real com OpenAI, qualidade das respostas, Bluetooth, auricular, gravação física e tela bloqueada ainda exigem testes no telefone.
+Os testes cobrem notas offline, persistência criptografada, backup com áudio, grafos e revisão de propostas da IA.
+Para notificações, usam mensagens sintéticas no formato do WhatsApp e verificam ativação/pausa,
+recorte temporal, deduplicação, origem das mensagens e migração do banco existente.
+Um teste no emulador verifica também a conexão e a revogação do listener pelo próprio Android.
+Não foi usada uma conta real do WhatsApp nem foram feitas chamadas pagas à IA.
+
+A assinatura final foi verificada e coincide com a entrega direta 0.2. Os 111 arquivos de conteúdo
+do APK permaneceram idênticos aos do build após a assinatura. O hash final está em `CHECKSUMS.txt`.
+Instalação, notificações reais e operação com tela bloqueada ainda precisam ser confirmadas no Samsung do usuário.
+Conectividade real com OpenAI, qualidade das respostas, Bluetooth, auricular e gravação física também exigem teste no telefone.
 
 ## Referências oficiais
 
