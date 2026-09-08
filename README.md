@@ -1,6 +1,6 @@
 # WhisperBrain — caderno local com IA e áudio
 
-Versão **0.2.0-alpha**, em validação. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
+Versão **0.2.0-alpha**. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
 Desenvolvido e compilado na nuvem para uso de quem só tem um telefone.
 
 ## O modelo do caderno
@@ -71,7 +71,10 @@ Guarde o backup em um lugar que você controla. Apagar o app também apaga seus 
 Abra [Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions), escolha a última execução bem-sucedida e baixe **WhisperBrain-Android-APK**.
 Extraia o ZIP e abra `app-debug.apk`. Uma nova alteração do código inicia outra compilação.
 Os APKs desse artefato usam assinatura de depuração do runner; a assinatura pode mudar entre execuções.
-A entrega direta pode usar uma assinatura pessoal estável, identificada em `VALIDATION.json`.
+A entrega direta `WhisperBrain-v0.2.0-alpha.apk` usa uma assinatura pessoal estável, identificada em `VALIDATION.json`.
+A chave privada foi guardada separadamente; ela não faz parte deste repositório nem dos artefatos públicos.
+A passagem dos APKs 0.1.0/0.1.1 para essa entrega exige desinstalar a versão antiga, apagando seus dados internos.
+Tenha sua chave da API e memórias importantes disponíveis antes disso. Veja [o guia de instalação](PHONE-SETUP.md).
 
 Android 12+; compile/target 36; Java 17; Gradle 8.13; AGP 8.11.1; SQLite nativo; OkHttp 4.12.0.
 A chave da API é inserida somente no app. A compilação e os testes não precisam dela e não fazem chamadas pagas.
@@ -79,6 +82,10 @@ A chave da API é inserida somente no app. A compilação e os testes não preci
 ## Validação
 
 Veja `VALIDATION.json` para o commit e os resultados reais do build.
+O [build de origem do APK](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34180888916) passou:
+20 testes JVM, 6 testes Android em emulador Android 15 e 29 verificações de regras de intervenção.
+As [quatro telas do caderno e dos grafos](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34181343265) também foram conferidas visualmente, com o mesmo código de produção.
+O lint terminou sem erros, com 24 avisos. A assinatura final foi verificada e os 111 arquivos de conteúdo do APK foram preservados.
 O workflow executa regras de intervenção, testes de parsing/grafo/protocolo e testes Android em emulador:
 escrita sem microfone ou API, persistência criptografada, exclusão de ligações, backup/importação com áudio e renderização do grafo.
 Conectividade real com OpenAI, qualidade das respostas, Bluetooth, auricular, gravação física e tela bloqueada ainda exigem testes no telefone.

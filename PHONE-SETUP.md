@@ -1,5 +1,15 @@
 # WhisperBrain 0.2 — primeiro uso no telefone
 
+## Instalar a entrega direta 0.2.0
+
+Baixe `WhisperBrain-v0.2.0-alpha.apk` pela conversa e abra o arquivo no telefone.
+Se o Android solicitar, permita a instalação para o aplicativo que abriu o APK.
+
+**A passagem de 0.1.0/0.1.1 para esta entrega exige desinstalar o APK antigo**, pois a assinatura anterior era temporária.
+Antes disso, tenha sua chave da API disponível e copie qualquer memória importante: a desinstalação apaga os dados e configurações internos.
+A partir desta entrega direta, uma chave pessoal de assinatura estável permite futuras atualizações compatíveis sem apagar o caderno.
+Isso vale para APKs assinados com a mesma chave; os artefatos de depuração do GitHub Actions ainda têm assinatura temporária.
+
 ## Caderno por texto
 
 1. Abra **+ Nova sessão**.
