@@ -66,6 +66,14 @@ public class NotebookDeviceTest {
     private static EditText findEditor(View view){if(view instanceof EditText && "Texto do novo neurônio".contentEquals(view.getContentDescription()==null?"":view.getContentDescription()))return (EditText)view;if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++){EditText e=findEditor(group.getChildAt(i));if(e!=null)return e;}}return null;}
     private static Button findButton(View view,String text){if(view instanceof Button && text.contentEquals(((Button)view).getText()))return (Button)view;if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++){Button b=findButton(group.getChildAt(i),text);if(b!=null)return b;}}return null;}
     private static BrainGraphView findGraph(View view){if(view instanceof BrainGraphView)return (BrainGraphView)view;if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++){BrainGraphView g=findGraph(group.getChildAt(i));if(g!=null)return g;}}return null;}
-    private void screenshot(String name)throws Exception{InstrumentationRegistry.getInstrumentation().waitForIdleSync();Bitmap shot=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();assertNotNull(shot);File dir=new File(context.getExternalFilesDir(null),"qa");assertTrue(dir.exists()||dir.mkdirs());try(OutputStream out=new FileOutputStream(new File(dir,name))){assertTrue(shot.compress(Bitmap.CompressFormat.PNG,100,out));}shot.recycle();shell("mkdir -p /sdcard/Download/whisperbrain-qa");shell("cp "+new File(dir,name).getAbsolutePath()+" /sdcard/Download/whisperbrain-qa/"+name);}
+    private void screenshot(String name)throws Exception{
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        // Main-thread idle alone can precede the window's first composed frame.
+        InstrumentationRegistry.getInstrumentation().getUiAutomation().waitForIdle(800,5000);
+        Bitmap shot=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();assertNotNull(shot);
+        File dir=new File(context.getExternalFilesDir(null),"qa");assertTrue(dir.exists()||dir.mkdirs());
+        try(OutputStream out=new FileOutputStream(new File(dir,name))){assertTrue(shot.compress(Bitmap.CompressFormat.PNG,100,out));}
+        shot.recycle();shell("mkdir -p /sdcard/Download/whisperbrain-qa");shell("cp "+new File(dir,name).getAbsolutePath()+" /sdcard/Download/whisperbrain-qa/"+name);
+    }
     private void shell(String command)throws Exception{try(android.os.ParcelFileDescriptor pfd=InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd)){byte[] b=new byte[1024];while(in.read(b)!=-1){}}}
 }
