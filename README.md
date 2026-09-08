@@ -49,7 +49,8 @@ A mensagem original pode ser incompleta; a interface não a apresenta como uma a
 
 Mensagens anteriores à ativação e mensagens da pausa são descartadas pelos horários disponíveis na notificação.
 Repetições são deduplicadas em transação SQLite, inclusive depois de fechar o app ou excluir uma nota.
-A identidade de conversa usa o identificador do atalho Android quando disponível, com a chave da notificação como alternativa.
+A identidade de conversa usa o identificador do atalho Android quando disponível, com a chave da notificação e o título como alternativa.
+Quando não há identificador, mudanças no nome da conversa podem abrir outra sessão.
 Nomes de contatos iguais não são usados como chave de união. Identificadores e impressões de deduplicação usam HMAC com segredo local criptografado.
 O banco da versão 0.2 migra para a versão 2 do esquema preservando as notas, ligações e áudios existentes.
 

@@ -54,7 +54,7 @@ public class NotificationServiceDeviceTest {
         Person sender=new Person.Builder().setName("Contato · exemplo").setKey("fixture-sender").build();
         NotificationCompat.MessagingStyle style=new NotificationCompat.MessagingStyle(new Person.Builder().setName("Você").setKey("self").build()).addMessage(text,time,sender);
         Notification n=new NotificationCompat.Builder(c,"fixture").setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Contato · exemplo").setShortcutId("fixture-contact").setCategory(Notification.CATEGORY_MESSAGE).setWhen(posted).setStyle(style).build();
-        return new StatusBarNotification("com.whatsapp","com.whatsapp",19,"fixture",10000,0,n,android.os.Process.myUserHandle(),posted);
+        return new StatusBarNotification("com.whatsapp","com.whatsapp",19,"fixture",10000,0,0,n,android.os.Process.myUserHandle(),posted);
     }
     private void await(BooleanSupplier ready){long end=SystemClock.elapsedRealtime()+15000;while(!ready.getAsBoolean()&&SystemClock.elapsedRealtime()<end)SystemClock.sleep(100);assertTrue("Android listener did not reach the expected state",ready.getAsBoolean());}
     private static Button button(View v,String name){if(v instanceof Button&&name.contentEquals(((Button)v).getText()))return (Button)v;if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++){Button found=button(g.getChildAt(i),name);if(found!=null)return found;}}return null;}

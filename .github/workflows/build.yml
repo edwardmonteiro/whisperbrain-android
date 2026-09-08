@@ -33,7 +33,7 @@ jobs:
           javac -d build/policy-checks app/src/main/java/com/edward/whisperbrain/AdvicePolicy.java checks/PolicyChecks.java
           java -cp build/policy-checks PolicyChecks
       - name: Compile, test, and lint
-        run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
+        run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

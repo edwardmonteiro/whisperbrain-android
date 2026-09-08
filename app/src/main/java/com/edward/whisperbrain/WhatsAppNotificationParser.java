@@ -24,7 +24,6 @@ public final class WhatsAppNotificationParser {
         if(n==null||(n.flags&(Notification.FLAG_GROUP_SUMMARY|Notification.FLAG_ONGOING_EVENT))!=0||!WhatsAppNotice.newEnough(sbn.getPostTime(),since,now))return out;
         if(Notification.CATEGORY_CALL.equals(n.category)||Notification.CATEGORY_TRANSPORT.equals(n.category)||Notification.CATEGORY_SERVICE.equals(n.category))return out;
         Bundle extras=n.extras;if(extras==null)return out;
-        String thread=n.getShortcutId()!=null?"shortcut:"+n.getShortcutId():"notification:"+sbn.getKey();
         NotificationCompat.MessagingStyle style=NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n);
         if(style!=null){
             String chat=text(style.getConversationTitle(),100);if(chat.isEmpty())chat=text(extras.getCharSequence(Notification.EXTRA_TITLE),100);
@@ -34,7 +33,7 @@ public final class WhatsAppNotificationParser {
                 if(body.isEmpty()&&m.getDataMimeType()!=null)body=m.getDataMimeType().startsWith("audio/")?"[Áudio indicado na notificação. O arquivo não foi capturado.]":"[Anexo indicado na notificação. O arquivo não foi capturado.]";
                 if(body.isEmpty())continue;if(name.isEmpty())name="Remetente não informado";
                 String title=chat.isEmpty()?name:chat;
-                out.add(new WhatsAppNotice(sbn.getPackageName(),thread,title,name,personKey(sender),body,m.getTimestamp(),style.isGroupConversation(),"message"));
+                out.add(new WhatsAppNotice(sbn.getPackageName(),thread(sbn,title),title,name,personKey(sender),body,m.getTimestamp(),style.isGroupConversation(),"message"));
                 if(out.size()>=100)break;
             }
         }else if(Notification.CATEGORY_MESSAGE.equals(n.category)){
@@ -44,9 +43,15 @@ public final class WhatsAppNotificationParser {
             String body=text(extras.getCharSequence(Notification.EXTRA_TEXT),18000);
             if(body.isEmpty())body=text(extras.getCharSequence(Notification.EXTRA_BIG_TEXT),18000);
             if(chat.isEmpty()||chat.equalsIgnoreCase("WhatsApp")||chat.equalsIgnoreCase("WhatsApp Business")||placeholder(body)||!WhatsAppNotice.newEnough(n.when,since,now))return out;
-            out.add(new WhatsAppNotice(sbn.getPackageName(),thread,chat,"Remetente não informado",chat,body,n.when,false,"notification"));
+            out.add(new WhatsAppNotice(sbn.getPackageName(),thread(sbn,chat),chat,"Remetente não informado",chat,body,n.when,false,"notification"));
         }
         out.sort(Comparator.comparingLong(m->m.time));return out;
+    }
+    private static String thread(StatusBarNotification sbn,String chat){
+        String shortcut=sbn.getNotification().getShortcutId();
+        if(shortcut!=null&&!shortcut.isEmpty())return "shortcut:"+shortcut;
+        // A legacy app may reuse one notification slot for different contacts.
+        return new org.json.JSONArray(List.of("notification",sbn.getKey(),chat)).toString();
     }
     private static boolean placeholder(String body){String value=body.trim().toLowerCase(Locale.ROOT);return value.isEmpty()||value.matches("(?:\\d+ )?(?:novas? mensagens?|mensagens? novas?|new messages?)")||Set.of("conteúdo oculto","conteúdo sensível oculto","content hidden","sensitive content hidden").contains(value);}
 }

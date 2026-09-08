@@ -32,7 +32,7 @@ public class WhatsAppDeviceTest {
     private NotificationCompat.MessagingStyle style(){return new NotificationCompat.MessagingStyle(me).setConversationTitle("Planejamento · exemplo").setGroupConversation(true);}
     private StatusBarNotification notification(String pkg,String thread,NotificationCompat.MessagingStyle style,long posted){
         Notification n=new NotificationCompat.Builder(context,"fixture").setSmallIcon(android.R.drawable.ic_dialog_info).setCategory(Notification.CATEGORY_MESSAGE).setShortcutId(thread).setStyle(style).setWhen(posted).build();
-        return new StatusBarNotification(pkg,pkg,7,"fixture",10000,0,n,android.os.Process.myUserHandle(),posted);
+        return new StatusBarNotification(pkg,pkg,7,"fixture",10000,0,0,n,android.os.Process.myUserHandle(),posted);
     }
     private WhatsAppNotice message(String chat,String thread,String text,long time){return new WhatsAppNotice("com.whatsapp",thread,chat,"Contato · exemplo","sender",text,time,false,"message");}
     @Test public void extractsOnlyIncomingNewMessagesAndIgnoresHistoricEntries(){
@@ -55,9 +55,15 @@ public class WhatsAppDeviceTest {
         List<WhatsAppNotice> out=WhatsAppNotificationParser.parse(notification("com.whatsapp","chat",s,now),since,now,false);
         assertEquals(1,out.size());assertTrue(out.get(0).text.contains("arquivo não foi capturado"));
     }
+    @Test public void reusedNotificationSlotsDoNotMergeDifferentChatTitles(){
+        NotificationCompat.MessagingStyle a=style().setConversationTitle("Conversa A").addMessage("Primeira",now-10,sender),b=style().setConversationTitle("Conversa B").addMessage("Segunda",now-10,sender);
+        WhatsAppNotice first=WhatsAppNotificationParser.parse(notification("com.whatsapp",null,a,now),since,now,false).get(0);
+        WhatsAppNotice second=WhatsAppNotificationParser.parse(notification("com.whatsapp",null,b,now),since,now,false).get(0);assertNotEquals(first.thread,second.thread);
+        assertNotEquals(WhatsAppNotificationParser.parse(notification("com.whatsapp","",a,now),since,now,false).get(0).thread,WhatsAppNotificationParser.parse(notification("com.whatsapp","",b,now),since,now,false).get(0).thread);
+    }
     @Test public void legacyFallbackRequiresVisibleTextAndRecentTimestamp(){
         Notification n=new NotificationCompat.Builder(context,"fixture").setSmallIcon(android.R.drawable.ic_dialog_info).setCategory(Notification.CATEGORY_MESSAGE).setContentTitle("Contato · exemplo").setContentText("Reunião às 15h").setWhen(now-50).build();
-        StatusBarNotification sbn=new StatusBarNotification("com.whatsapp","com.whatsapp",8,"legacy",10000,0,n,android.os.Process.myUserHandle(),now);
+        StatusBarNotification sbn=new StatusBarNotification("com.whatsapp","com.whatsapp",8,"legacy",10000,0,0,n,android.os.Process.myUserHandle(),now);
         assertEquals(1,WhatsAppNotificationParser.parse(sbn,since,now,false).size());n.when=since-1;assertTrue(WhatsAppNotificationParser.parse(sbn,since,now,false).isEmpty());n.when=now-50;n.extras.putCharSequence(Notification.EXTRA_TEXT,"Conteúdo oculto");assertTrue(WhatsAppNotificationParser.parse(sbn,since,now,false).isEmpty());
     }
     @Test public void deduplicationSurvivesReopenAndDeletionWithoutLosingRepeatedNewText()throws Exception{
