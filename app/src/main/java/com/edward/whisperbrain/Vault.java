@@ -16,9 +16,11 @@ import org.json.JSONArray;
 /** Encrypted local user configuration. No key, memory, or audio is shipped in the APK. */
 public final class Vault {
     private static final String ALIAS = "whisperbrain.personal.v1";
+    private static final Object KEY_LOCK = new Object();
     private final SharedPreferences prefs;
     public Vault(Context context) { prefs = context.getSharedPreferences("vault", Context.MODE_PRIVATE); }
     private SecretKey key() throws Exception {
+        synchronized (KEY_LOCK) {
         KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
         ks.load(null);
         if (ks.containsAlias(ALIAS)) return (SecretKey) ks.getKey(ALIAS, null);
@@ -27,24 +29,35 @@ public final class Vault {
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256).build());
         return gen.generateKey();
+        }
     }
     public synchronized void put(String name, String value) throws Exception {
-        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-        c.init(Cipher.ENCRYPT_MODE, key());
-        c.updateAAD(name.getBytes(StandardCharsets.UTF_8));
-        String encrypted = Base64.encodeToString(c.getIV(), Base64.NO_WRAP) + ":"
-                + Base64.encodeToString(c.doFinal(value.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
-        if (!prefs.edit().putString(name, encrypted).commit()) throw new Exception("Storage write failed");
+        if (!prefs.edit().putString(name, seal(name, value)).commit()) throw new Exception("Storage write failed");
     }
     public synchronized String get(String name, String fallback) throws Exception {
         String value = prefs.getString(name, null);
         if (value == null) return fallback;
+        return open(name, value);
+    }
+    public String seal(String name, String value) throws Exception {
+        Cipher c = encryptor(name);
+        return Base64.encodeToString(c.getIV(), Base64.NO_WRAP) + ":"
+                + Base64.encodeToString(c.doFinal(value.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
+    }
+    public String open(String name, String value) throws Exception {
         String[] parts = value.split(":", 2);
         if (parts.length != 2) throw new Exception("Invalid vault entry");
-        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-        c.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
-        c.updateAAD(name.getBytes(StandardCharsets.UTF_8));
+        Cipher c = decryptor(name, Base64.decode(parts[0], Base64.NO_WRAP));
         return new String(c.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8);
+    }
+    public Cipher encryptor(String name) throws Exception {
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, key());
+        c.updateAAD(name.getBytes(StandardCharsets.UTF_8)); return c;
+    }
+    public Cipher decryptor(String name, byte[] iv) throws Exception {
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
+        c.updateAAD(name.getBytes(StandardCharsets.UTF_8)); return c;
     }
     public synchronized JSONArray memories() throws Exception { return new JSONArray(get("memories", "[]")); }
     public synchronized void remember(String text) throws Exception {

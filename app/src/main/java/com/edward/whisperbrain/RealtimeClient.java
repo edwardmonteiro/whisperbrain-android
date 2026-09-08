@@ -16,6 +16,8 @@ public final class RealtimeClient {
     public interface Listener {
         void configured(); void speechStarted(); void speechStopped(); void committed();
         void responseStarted(); void answer(String json, long tokens); void failed(String message);
+        default void transcript(String itemId, String text) {}
+        default void transcriptionFailed() {}
     }
     private final Listener listener;
     private final OkHttpClient http = new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
@@ -32,6 +34,9 @@ public final class RealtimeClient {
     // Package-private endpoint injection is used only by the local protocol tests.
     RealtimeClient(Listener listener, String endpoint) { this.listener = listener; this.endpoint = endpoint; }
     public void connect(String key, String model, String goal, String memory, String language) {
+        connect(key, model, goal, memory, language, false);
+    }
+    public void connect(String key, String model, String goal, String memory, String language, boolean transcribe) {
         instructions = "You are WhisperBrain, a private contextual coach for the phone's owner. "
                 + "Listen to an in-person conversation and offer rare, useful, specific nudges to its owner. "
                 + "You are not a participant in that conversation. Do not answer each speaker's questions. "
@@ -63,6 +68,7 @@ public final class RealtimeClient {
                             .put("create_response", false).put("interrupt_response", false);
                     JSONObject input = new JSONObject().put("format", new JSONObject()
                             .put("type", "audio/pcm").put("rate", 24000)).put("turn_detection", vad);
+                    if (transcribe) input.put("transcription", new JSONObject().put("model", "gpt-4o-mini-transcribe"));
                     JSONObject session = new JSONObject().put("type", "realtime")
                             .put("instructions", instructions).put("output_modalities", new JSONArray().put("text"))
                             .put("max_output_tokens", 768).put("audio", new JSONObject().put("input", input));
@@ -80,6 +86,9 @@ public final class RealtimeClient {
                         case "input_audio_buffer.speech_started": listener.speechStarted(); break;
                         case "input_audio_buffer.speech_stopped": listener.speechStopped(); break;
                         case "input_audio_buffer.committed": listener.committed(); break;
+                        case "conversation.item.input_audio_transcription.completed":
+                            listener.transcript(event.optString("item_id"), event.optString("transcript")); break;
+                        case "conversation.item.input_audio_transcription.failed": listener.transcriptionFailed(); break;
                         case "response.created": output.setLength(0); listener.responseStarted(); break;
                         case "response.output_text.delta":
                             output.append(event.optString("delta", ""));

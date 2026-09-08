@@ -20,6 +20,10 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import java.io.File;
+import java.util.HashSet;
+import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public final class BrainService extends Service {
     public static final String START = "com.edward.whisperbrain.START";
@@ -38,6 +42,9 @@ public final class BrainService extends Service {
     private volatile long generation;
     private long deadline, requestedAt, captureStarted, pendingVoiceAt;
     private String pendingVoice = "";
+    private String notebookSession = "";
+    private boolean saveLocalAudio, transcribe;
+    private final Set<String> transcriptItems = new HashSet<>();
 
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -54,7 +61,7 @@ public final class BrainService extends Service {
                 if (!SessionState.active) stopSelf();
             }
             SessionState.changed();
-        } else if (START.equals(action) && !SessionState.active) startSession();
+        } else if (START.equals(action) && !SessionState.active) startSession(intent);
         return START_NOT_STICKY;
     }
     private Notification notification() {
@@ -73,7 +80,7 @@ public final class BrainService extends Service {
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .addAction(new Notification.Action.Builder(null, "Stop", stop).build()).build();
     }
-    private void startSession() {
+    private void startSession(Intent intent) {
         stopping = false;
         long id = ++generation;
         SessionState.reset(); SessionState.active = true; SessionState.started = SystemClock.elapsedRealtime();
@@ -86,11 +93,25 @@ public final class BrainService extends Service {
             startForeground(7, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                     | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
             Vault vault = new Vault(this);
+            NotebookStore notebook = NotebookStore.get(this);
+            notebookSession = intent.getStringExtra("session");
+            if (notebookSession == null || notebookSession.isEmpty()) notebookSession = notebook.createSession("Conversa ao vivo").getString("id");
+            notebook.session(notebookSession); notebook.endSession(notebookSession, false);
+            SessionState.sessionId = notebookSession;
+            saveLocalAudio = Boolean.parseBoolean(vault.get("save_session_audio", "false"));
+            transcribe = Boolean.parseBoolean(vault.get("save_transcript", "true"));
+            transcriptItems.clear();
             String key = vault.get("api_key", "").trim();
             String model = vault.get("model", "gpt-realtime-2.1-mini").trim();
             String goal = vault.get("goal", "Help me think clearly and ask better questions.");
-            String language = vault.get("language", "en-US");
-            String memories = vault.memories().toString();
+            String language = vault.get("language", "pt-BR");
+            JSONArray approved = vault.memories(), local = notebook.nodes(notebookSession);
+            int included = 0;
+            for (int i = local.length() - 1; i >= 0 && included < 12; i--) {
+                JSONObject n = local.getJSONObject(i);
+                if (n.optString("kind").equals("note") && n.optString("origin").equals("user")) { approved.put(GraphData.text(n.getString("body"),600)); included++; }
+            }
+            String memories = approved.toString();
             if (!(key.startsWith("sk-") || key.startsWith("ek_")) || key.contains("\n") || key.contains("\r")) {
                 finish("Add your own OpenAI API key in Connection settings."); return;
             }
@@ -151,10 +172,18 @@ public final class BrainService extends Service {
                 SessionState.hearing = "Trecho de áudio confirmado pela API."; SessionState.changed();
             }); }
             @Override public void responseStarted() { postFor(id, () -> policy.responseStarted()); }
+            @Override public void transcript(String itemId, String text) { postFor(id, () -> {
+                if (text.trim().isEmpty() || !transcriptItems.add(itemId)) return;
+                try { NotebookStore.get(BrainService.this).addNode(notebookSession,"Fala transcrita",text,"transcript","asr"); }
+                catch (Exception e) { finish("Não foi possível salvar a transcrição local. Confira o espaço livre."); }
+            }); }
+            @Override public void transcriptionFailed() { postFor(id, () -> {
+                SessionState.detail = "Uma transcrição falhou. Resumos e dicas continuam disponíveis."; SessionState.changed();
+            }); }
             @Override public void answer(String json, long tokens) { postFor(id, () -> handleAdvice(json, tokens)); }
             @Override public void failed(String message) { postFor(id, () -> finish(message)); }
         });
-        try { api.connect(key, model, goal, memories, language); }
+        try { api.connect(key, model, goal, memories, language, transcribe); }
         catch (Exception e) { finish("Could not open the live-audio connection."); }
     }
     @SuppressWarnings("MissingPermission")
@@ -182,6 +211,9 @@ public final class BrainService extends Service {
                 recorder = null; capture.release(); finish("Another app may be using the microphone."); return;
             }
             capturing = true;
+            final AudioArchive.Writer archive = saveLocalAudio ? new AudioArchive.Writer(this) : null;
+            SessionState.savingAudio = archive != null;
+            final String archiveSession = notebookSession;
             RealtimeClient live = api; PrivateVoice privateVoice = voice;
             Thread worker = new Thread(() -> {
                 byte[] pcm = new byte[4800];
@@ -190,6 +222,7 @@ public final class BrainService extends Service {
                         int count = capture.read(pcm, 0, pcm.length, AudioRecord.READ_BLOCKING);
                         if (!capturing || generation != id) break;
                         if (count <= 0) { postFor(id, () -> finish("Microphone capture was interrupted.")); break; }
+                        if (archive != null) archive.write(pcm, count);
                         double sum = 0;
                         for (int i = 0; i + 1 < count; i += 2) {
                             short sample = (short) ((pcm[i] & 255) | (pcm[i + 1] << 8)); sum += (double) sample * sample;
@@ -204,7 +237,19 @@ public final class BrainService extends Service {
                         }
                     }
                 } catch (Exception e) { postFor(id, () -> finish("Microphone capture failed.")); }
-                finally { try { capture.release(); } catch (Exception ignored) {} }
+                finally {
+                    try { capture.release(); } catch (Exception ignored) {}
+                    if (archive != null) {
+                        try {
+                            archive.close();
+                            if (archive.bytes > 0) NotebookStore.get(BrainService.this).addAudio(archiveSession,archive.id,"pcm24k",archive.bytes * 1000 / 48000);
+                            else archive.discard();
+                        } catch (Exception e) { archive.discard(); new Handler(Looper.getMainLooper()).post(() -> {
+                            if (SessionState.sessionId.equals(archiveSession)) SessionState.detail = "O áudio desta escuta não pôde ser salvo. As notas já salvas continuam no caderno."; SessionState.changed();
+                        }); }
+                        new Handler(Looper.getMainLooper()).post(() -> {SessionState.savingAudio=false;SessionState.changed();});
+                    }
+                }
             }, "WhisperBrain-mic");
             worker.start();
             captureStarted = SystemClock.elapsedRealtime();
@@ -269,6 +314,15 @@ public final class BrainService extends Service {
         SessionState.tokens += tokens; SessionState.replies++;
         try {
             Advice a = Advice.parse(json);
+            try {
+                NotebookStore notebook = NotebookStore.get(this);
+                JSONObject summary = null;
+                if (!a.context.isEmpty()) summary = notebook.addNode(notebookSession,"Contexto da conversa",a.context,"summary","ai");
+                if (!a.text.isEmpty()) {
+                    JSONObject suggestion = notebook.addNode(notebookSession,"Dica ao vivo",a.text,"recommendation","ai");
+                    if (summary != null) notebook.link(summary.getString("id"),suggestion.getString("id"),"recomenda","Dica baseada no resumo deste momento.","ai","proposed");
+                }
+            } catch (Exception e) { finish("A resposta chegou, mas não pôde ser salva no caderno. Confira o espaço livre."); return; }
             SessionState.context = a.context.isEmpty() ? "A API respondeu sem um resumo. Tente explicar a situação e analisar novamente." : a.context;
             SessionState.memory = a.memory;
             SessionState.advice = a.text.isEmpty() ? "Contexto analisado. Nenhuma nova dica sugerida desta vez." : a.text;

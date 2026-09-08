@@ -161,6 +161,11 @@ public final class PrivateVoice {
             }, 20_000);
         } catch (Exception e) { fail("Could not prepare private voice playback."); }
     }
+    public void playRecording(File media) {
+        if (closed || !readySent) { media.delete(); return; }
+        if (!routeIsValid()) { media.delete(); fail("A saída privada não está disponível."); return; }
+        cancel(); busy = true; wave = media; playWave();
+    }
     private void playWave() {
         if (!routeIsValid()) { fail("Audio route changed before playback."); return; }
         try {

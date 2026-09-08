@@ -1,116 +1,93 @@
-# WhisperBrain — personal Android prototype
+# WhisperBrain — caderno local com IA e áudio
 
-A native Android starting point for live context and brief private advice.
-Built for a workflow where your Android phone is your only computer.
+Versão **0.2.0-alpha**, em validação. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
+Desenvolvido e compilado na nuvem para uso de quem só tem um telefone.
 
-**Version 0.1.1-alpha addresses the first phone report: speech produced no visible response.**
-The exact cause on the phone is not yet confirmed. The code now avoids an indefinite VAD wait for manual analysis,
-checks long detected speech every 20 seconds, and displays input/response progress. [Cloud build passed](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34176235611): 29 policy checks, 12 JVM tests, and Android lint with 0 errors (5 warnings). Phone retest is still pending.
-No paid AI requests were made during development. No API key is included.
+## O modelo do caderno
 
-## Build from your phone
-
-1. Open this repository's **Actions** tab from Chrome on your phone.
-2. Open the latest successful **Build WhisperBrain APK** run.
-3. Download **WhisperBrain-Android-APK**, extract the ZIP, and open `app-debug.apk`.
-4. For another build, choose **Build WhisperBrain APK → Run workflow**.
-
-Source commits also start a build. No laptop or AI API key is needed to compile the app.
-See [PHONE-SETUP.md](PHONE-SETUP.md) for installation and first-use instructions.
-
-## What is implemented in the source
-
-| Capability | This prototype |
+| Elemento | Comportamento |
 | --- | --- |
-| Audio capture | Native microphone streaming, PCM16 mono, 24 kHz |
-| Context | OpenAI Realtime conversation context during each session |
-| Model | Editable model ID; default `gpt-realtime-2.1-mini` |
-| Advice timing | Analyses after pauses or 20 seconds of continuous detected speech; playback waits for quiet |
-| Intervention | Model can choose silence, with visible context; **Analisar agora** explicitly commits audio and requests analysis |
-| Diagnostics | Microphone level, sent bytes, detected speech, committed audio, request/reply counts; copyable without conversation or key |
-| Voice | Installed offline Android TTS at a reduced playback volume |
-| Private route | Calling-capable earbuds, or the phone earpiece |
-| Session control | Explicit Start/Stop, ongoing notification, 10/20/45-minute time limits |
-| Memory | Up to 20 reviewed notes, 400 characters each, encrypted with Android Keystore |
-| Languages | English (US) or Brazilian Portuguese advice |
-| API credentials | User-entered personal key encrypted locally; never embedded in the APK |
-| Failure behavior | Stops capture on network failure, audio interruption, or detected route loss |
+| Sessão | Conversa com data/hora de início, nome do evento e estado aberta/encerrada |
+| Neurônio | Nota, transcrição, áudio, resumo ou recomendação; mantém sua origem |
+| Sinapse | Ligação entre dois neurônios, com relação, motivo e estado proposta/aceita |
+| Grafo da conversa | Neurônios e conexões daquela sessão |
+| Grafo completo | Conexões entre sessões; busca por nota ou evento |
+| Histórico | Notas persistem localmente após fechar e reabrir o app |
 
-## First use after installing the APK
+## Usar sem microfone
 
-1. Run **Testar áudio privado**. No AI key or microphone capture is needed for that test.
-2. If needed, use **Configurações de conexão e voz → Install Android voice data** to download an offline voice.
-3. Add your own API key in the app's Connection settings. Do not paste it into chat or a repository.
-4. Set a short goal, for example: “Help me identify unclear assumptions and ask one better question.”
-5. Start a 10-minute session with participants who agree to AI assistance.
-6. Speak a complete sentence, pause for 3 seconds, and try **Analisar agora**. A context summary appears near the top even if no spoken nudge is useful.
-7. Review any suggested memory before saving it. New notes are included from the next session onward.
+1. Abra **Nova sessão** e escreva o nome do evento.
+2. Digite uma nota e toque em **Salvar neurônio**.
+3. Continue escrevendo offline. Não é necessária uma chave nem permissão de microfone.
+4. Para apoio da IA, configure sua chave e toque em **Gerar sinapses com IA**.
+5. Abra uma sinapse proposta para aceitar ou remover. A IA não transforma hipóteses em fatos aprovados.
 
-You need internet access and separately billed OpenAI API access. Model access depends on your API project.
-The Android voice is soft speech; its tone depends on the installed voice. This version does not generate a true whispered vocal style.
+O texto é salvo como anotação local. Somente os comandos de IA enviam contexto à API.
+A análise recebe a nota foco, até 14 notas recentes da mesma conversa e, se habilitado,
+até 10 notas de outras sessões selecionadas por palavras em comum. Não há envio integral automático do caderno.
+As respostas usam a API Responses com `store:false` e formato JSON estruturado; isso não elimina a retenção de segurança do provedor.
+Modelo de texto editável, inicialmente `gpt-4.1-mini`.
 
-## Important boundaries of this version
+## Áudio e escuta ao vivo
 
-- **In-person microphone audio:** it does not implement telephone, WhatsApp, or Teams call-audio capture.
-- **Speaker identity:** there is no reliable diarization, voice enrollment, or wearer identification. The model can confuse speakers.
-- **Input/output pairing:** Android may pair the Bluetooth microphone with Bluetooth playback. The phone microphone is requested, not guaranteed. The live screen reports the actual input when available.
-- **Brief capture gaps:** input is deliberately omitted during spoken advice and for 300 ms afterward, to avoid feedback. This is not uninterrupted full-duplex capture.
-- **Privacy of playback:** the app selects a private route, starts playback muted, verifies the route, and stops on detected changes. Zero audio leakage cannot be guaranteed without hardware testing; route changes are asynchronous.
-- **Background operation:** a microphone foreground service and wake lock are implemented. Screen-lock, battery, Bluetooth, and incoming-call behavior still need testing on the actual phone.
-- **Memory:** approved notes persist locally; full conversations do not persist locally between sessions. Context is bounded by the provider's session/context limits.
-- **Cloud processing:** live audio, your goal, and approved notes go to OpenAI. “No local raw recording” does not mean zero retention by the provider. Consult its data controls.
-- **Personal credentials:** direct use of your own key is a personal prototype tradeoff. Before distributing the app, use an authenticated backend issuing short-lived client secrets, with usage enforcement. The app also accepts an `ek_` client secret, but does not refresh expired secrets or implement the broker.
-- **Test signing:** the cloud workflow uses Android's generated debug signing key. A fresh build can have a different signature and require uninstalling the earlier app, which deletes the saved API key, settings and local memories. Retain needed notes and have your API key available before uninstalling. Establish private, stable release signing before relying on persistent updates.
+- **Gravar áudio local:** notas de até 3 minutos, guardadas criptografadas; a gravação termina ao sair da tela.
+- **Transcrever áudio com IA:** comando explícito dentro de uma nota de áudio; cria uma transcrição ligada ao original.
+- **Escuta ao vivo:** mantém o microfone em um serviço Android iniciado pelo usuário, com notificação e Stop.
+- Resumos e dicas ao vivo são salvos na sessão local escolhida.
+- **Salvar transcrições:** habilita a transcrição da API, com custo adicional. Texto reconhecido pode conter erros.
+- **Guardar também o áudio local:** opcional; ocupa aproximadamente 2,9 MB/minuto. Até 45 minutos por escuta.
+- Dicas faladas usam uma voz offline Android, com saída privada verificada e volume reduzido.
+- Análises ocorrem em pausas ou a cada 20 segundos de fala contínua detectada; a voz aguarda uma pausa.
+- **Analisar agora** solicita a análise sem depender do detector de pausa.
 
-## Architecture
+A entrada enviada à IA tem breves lacunas durante as dicas faladas, para evitar eco. A gravação local opcional mantém o áudio do microfone.
+O fim abrupto de uma escuta pode impedir a chegada das últimas transcrições; o arquivo de áudio só aparece depois de finalizado.
+A transcrição de um arquivo já salvo aceita até 24 MB nesta versão. Para gravações ao vivo mais longas, habilite a transcrição durante a escuta.
+O áudio de entrada vem do microfone: não há captura de chamadas telefônicas, WhatsApp ou Teams.
+Não há identificação confiável de falantes. A voz é fala suave de TTS, não uma voz neural com estilo de sussurro.
 
-| Component | Responsibility |
-| --- | --- |
-| `MainActivity` | Session controls, permissions, local settings, reviewed memory, audio test |
-| `BrainService` | Foreground lifecycle, microphone stream, timeout, failure cleanup |
-| `RealtimeClient` | GA Realtime WebSocket protocol, server VAD, text responses |
-| `AdvicePolicy` | Deterministic quiet periods, cooldown, manual request scheduling |
-| `Advice` | Parsing and bounds checks before speech |
-| `PrivateVoice` | Offline synthesis, private device selection, playback checks and cleanup |
-| `Vault` | AES-GCM encrypted configuration and approved notes; Android Keystore key |
-| `SessionState` | In-memory UI state; cleared when a new session starts |
+## Grafo e revisão
 
-This prototype uses WebSocket for a small Java implementation with controllable audio routing.
-OpenAI recommends WebRTC for mobile clients. A production version should evaluate WebRTC with short-lived credentials,
-robust echo cancellation, interruption handling, and server-side usage controls.
+As notas do usuário aparecem em verde. Recomendações e resumos da IA aparecem em âmbar.
+Linhas tracejadas indicam propostas da IA; linhas contínuas indicam ligações aceitas ou criadas pelo usuário.
+Toque em um neurônio ou sinapse, arraste o grafo e amplie com dois dedos. A lista de notas oferece outra forma de navegação.
+O desenho mostra até 180 neurônios recentes que correspondem ao filtro; os demais permanecem salvos e pesquisáveis.
+As conexões propostas só podem apontar para IDs de notas efetivamente enviados à IA. IDs inventados e auto-ligações são descartados.
 
-## Validation
+## Armazenamento e backup
 
-The cloud build passed 29 policy checks, 6 advice-parser tests, 6 local WebSocket protocol tests,
-Android compilation, APK assembly and lint (0 errors, 5 warnings). The protocol fixtures cover manual requests
-without VAD events, final text without deltas, and a correlated empty-buffer commit race. They do not call OpenAI.
-See `VALIDATION.json` for the actual tested commit, cloud outcome and downloadable artifact checksums.
+O SQLite guarda o conteúdo de sessões, notas e conexões com AES-GCM e chave do Android Keystore.
+IDs, relações de chave estrangeira e datas usados pelos índices continuam como metadados locais.
+Os áudios são arquivos criptografados; cópias temporárias legíveis são usadas na gravação/reprodução e removidas ao concluir.
+O backup automático Android está desativado.
 
-The remaining validation requires a real Android phone: installation, live API authentication and advice,
-earpiece/Bluetooth routing, screen lock, incoming calls, network loss, and session timeout.
-A successful build does not verify these physical-device behaviors.
+**Exportar caderno e áudios** cria um ZIP legível, escolhido pelo usuário, com JSON, notas Markdown, links `[[id]]` e arquivos WAV/M4A.
+O ZIP não contém a chave da API. **Importar um backup** recria IDs e conexões sem sobrescrever sessões existentes.
+O limite de importação é 500 MB, 5.000 sessões, 30.000 neurônios e 100.000 sinapses por arquivo.
+Guarde o backup em um lugar que você controla. Apagar o app também apaga seus dados internos e a chave do Keystore.
 
-For a first device test, verify a complete cycle: audio test → permission grant → one contextual nudge → Stop.
-Then verify screen lock, incoming call interruption, earbud disconnection, network loss, and session timeout.
-Confirm no private advice is audible through the loudspeaker. Source inspection is not a hardware test.
+## Compilar pelo telefone
 
-## Build toolchain
+Abra [Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions), escolha a última execução bem-sucedida e baixe **WhisperBrain-Android-APK**.
+Extraia o ZIP e abra `app-debug.apk`. Uma nova alteração do código inicia outra compilação.
+Os APKs desse artefato usam assinatura de depuração do runner; a assinatura pode mudar entre execuções.
+A entrega direta pode usar uma assinatura pessoal estável, identificada em `VALIDATION.json`.
 
-Android 12+ (API 31 minimum); compile/target SDK 36; AGP 8.11.1; Gradle 8.13; Java 17.
-The GitHub workflow installs the tools. A Gradle wrapper is not included; local developers can use Gradle 8.13.
+Android 12+; compile/target 36; Java 17; Gradle 8.13; AGP 8.11.1; SQLite nativo; OkHttp 4.12.0.
+A chave da API é inserida somente no app. A compilação e os testes não precisam dela e não fazem chamadas pagas.
 
-```sh
-gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
-```
+## Validação
 
-## Official references
+Veja `VALIDATION.json` para o commit e os resultados reais do build.
+O workflow executa regras de intervenção, testes de parsing/grafo/protocolo e testes Android em emulador:
+escrita sem microfone ou API, persistência criptografada, exclusão de ligações, backup/importação com áudio e renderização do grafo.
+Conectividade real com OpenAI, qualidade das respostas, Bluetooth, auricular, gravação física e tela bloqueada ainda exigem testes no telefone.
 
-- [Android microphone foreground services](https://developer.android.com/develop/background-work/services/fgs/service-types#microphone): microphone access must be granted before starting the service from a visible app.
-- [Android communication-device routing](https://developer.android.com/reference/android/media/AudioManager#setCommunicationDevice(android.media.AudioDeviceInfo)): selecting and releasing communication audio routes.
-- [Android text-to-speech](https://developer.android.com/reference/android/speech/tts/TextToSpeech): synthesis, voice selection, and audio attributes.
-- [OpenAI Realtime conversations](https://developers.openai.com/api/docs/guides/realtime-conversations): VAD with manual response generation and current event schemas.
-- [OpenAI Realtime client secrets](https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create): production mobile authentication.
-- [Realtime Mini model](https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini): available modalities and model details.
-- [API pricing](https://developers.openai.com/api/docs/pricing) and [data controls](https://developers.openai.com/api/docs/guides/your-data): account costs and provider data handling.
-- [AGP 8.11 compatibility](https://developer.android.com/build/releases/agp-8-11-0-release-notes): SDK, Java, and Gradle compatibility.
-- [Running a GitHub workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow) and [downloading artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts): browser-based builds and downloads.
+## Referências oficiais
+
+- [OpenAI Responses e saída estruturada](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime-conversations)
+- [Transcrição de arquivos](https://developers.openai.com/api/docs/guides/speech-to-text)
+- [Android Keystore](https://developer.android.com/privacy-and-security/keystore)
+- [Android microphone foreground services](https://developer.android.com/develop/background-work/services/fgs/service-types#microphone)
+- [Emulador Android no GitHub Actions](https://github.com/ReactiveCircus/android-emulator-runner)

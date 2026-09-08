@@ -44,6 +44,8 @@ public final class MainActivity extends Activity {
     private Button start, nudge, connection, test, saveNote, memory;
     private EditText goal;
     private Switch automatic;
+    private Switch saveAudio, saveTranscript;
+    private String notebookSession = "";
     private ProgressBar meter;
     private PrivateVoice testVoice;
     private boolean testing;
@@ -54,6 +56,8 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         getWindow().setDecorFitsSystemWindows(false);
         vault = new Vault(this);
+        notebookSession = SessionState.active ? SessionState.sessionId : getIntent().getStringExtra("session");
+        if (notebookSession == null) notebookSession = "";
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true); scroll.setBackgroundColor(BG);
         LinearLayout root = column(); root.setPadding(dp(22), dp(22), dp(22), dp(30));
@@ -63,8 +67,11 @@ public final class MainActivity extends Activity {
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
         });
         root.addView(label("WHISPERBRAIN", 16, ACCENT, true));
-        root.addView(label("A little space to think.", 30, INK, true));
-        root.addView(label("Android pessoal · 0.1.1-alpha", 14, MUTED, false));
+        root.addView(label("Escuta ao vivo", 30, INK, true));
+        root.addView(label("Android pessoal · 0.2.0-alpha", 14, MUTED, false));
+        if (!notebookSession.isEmpty()) try { root.addView(label("# " + NotebookStore.get(this).session(notebookSession).getString("event"),18,ACCENT,true)); } catch (Exception ignored) {}
+        Button notebook = button("← Voltar ao caderno", SURFACE, INK); root.addView(notebook);
+        notebook.setOnClickListener(v -> { startActivity(new Intent(this,NotebookActivity.class).putExtra("session",SessionState.active?SessionState.sessionId:notebookSession).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)); finish(); });
         gap(root, 22);
 
         LinearLayout live = card(root);
@@ -88,6 +95,8 @@ public final class MainActivity extends Activity {
                     if (vault.get("api_key", "").isEmpty()) { settings(); return; }
                     vault.put("goal", goal.getText().toString().trim());
                     vault.put("automatic", String.valueOf(automatic.isChecked()));
+                    vault.put("save_session_audio", String.valueOf(saveAudio.isChecked()));
+                    vault.put("save_transcript", String.valueOf(saveTranscript.isChecked()));
                     permissions(1);
                 } catch (Exception e) { toast("Could not read or save settings. Your session has not started."); }
             }
@@ -95,7 +104,10 @@ public final class MainActivity extends Activity {
         nudge = button("Analisar agora", Color.rgb(40, 54, 73), INK); live.addView(nudge);
         nudge.setOnClickListener(v -> startService(new Intent(this, BrainService.class).setAction(BrainService.ASK)));
         live.addView(label("Fale uma frase e pause por 3 segundos. Analisar agora também funciona sem esperar o detector de pausa.", 14, MUTED, false));
-        live.addView(label("During a session, microphone audio and approved notes go to OpenAI. Use with participants’ agreement.", 14, MUTED, false));
+        live.addView(label("Nesta escuta, áudio e notas de contexto vão à OpenAI. Resumos e dicas ficam salvos na conversa local. Use com a concordância dos participantes.", 14, MUTED, false));
+        saveTranscript = new Switch(this); saveTranscript.setText("Salvar transcrições na conversa"); saveTranscript.setTextColor(INK); saveTranscript.setChecked(Boolean.parseBoolean(read("save_transcript","true")));live.addView(saveTranscript);
+        saveAudio = new Switch(this); saveAudio.setText("Guardar também o áudio local");saveAudio.setTextColor(INK);saveAudio.setChecked(Boolean.parseBoolean(read("save_session_audio","false")));live.addView(saveAudio);
+        live.addView(label("Transcrição usa a API e pode conter erros. Áudio local ocupa cerca de 2,9 MB por minuto; só é guardado quando ativado.",14,MUTED,false));
         gap(root, 18);
 
         LinearLayout next = card(root);
@@ -133,6 +145,7 @@ public final class MainActivity extends Activity {
         root.addView(label("Only notes you approve are saved. Live audio is not recorded to a file by this app. API usage is billed separately from ChatGPT.", 14, MUTED, false));
         setContentView(scroll);
         render();
+        if (getIntent().getBooleanExtra("settings",false)) root.post(this::settings);
     }
     @Override public void onResume() { super.onResume(); SessionState.observer = this::render; render(); }
     @Override public void onPause() {
@@ -162,10 +175,11 @@ public final class MainActivity extends Activity {
         meta.setText(info.trim());
         start.setText(SessionState.active ? "Parar escuta" : "Iniciar escuta");
         start.setBackground(round(SessionState.active ? Color.rgb(255, 167, 159) : ACCENT, 14));
-        start.setEnabled(!testing); nudge.setEnabled(SessionState.connected && !testing && !SessionState.requestInFlight);
+        start.setEnabled(!testing && (!SessionState.savingAudio || SessionState.active)); nudge.setEnabled(SessionState.connected && !testing && !SessionState.requestInFlight);
         nudge.setText(SessionState.requestInFlight ? "Analisando…" : "Analisar agora");
         connection.setEnabled(!SessionState.active && !testing); test.setEnabled(!SessionState.active && !testing);
         goal.setEnabled(!SessionState.active && !testing); automatic.setEnabled(!SessionState.active && !testing);
+        saveAudio.setEnabled(!SessionState.active && !testing); saveTranscript.setEnabled(!SessionState.active && !testing);
         saveNote.setEnabled(!SessionState.memory.isEmpty());
     }
     private void permissions(int action) {
@@ -191,7 +205,7 @@ public final class MainActivity extends Activity {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 toast("Allow microphone access to start listening."); return;
             }
-            try { startForegroundService(new Intent(this, BrainService.class).setAction(BrainService.START)); }
+            try { startForegroundService(new Intent(this, BrainService.class).setAction(BrainService.START).putExtra("session",notebookSession)); }
             catch (Exception e) { toast("Android could not start the session. Keep the app open and try again."); }
         } else if (action == 2) testAudio();
     }
@@ -199,7 +213,7 @@ public final class MainActivity extends Activity {
         if (SessionState.active || testing) return;
         testing = true; SessionState.status = "Testing private audio";
         SessionState.detail = "This test uses Android’s offline voice. It does not use the microphone or AI API."; render();
-        String language = read("language", "en-US");
+        String language = read("language", "pt-BR");
         testVoice = new PrivateVoice(this, new PrivateVoice.Listener() {
             @Override public void ready(String route) {
                 if (!testing || testVoice == null) return;
@@ -229,9 +243,11 @@ public final class MainActivity extends Activity {
         content.addView(label("Personal prototype: your own key is encrypted on this phone. Never paste it into GitHub or chat.", 14, MUTED, false));
         content.addView(label("Realtime model", 16, INK, true));
         EditText model = field("gpt-realtime-2.1-mini", false, 100); model.setText(read("model", "gpt-realtime-2.1-mini")); content.addView(model);
+        content.addView(label("Modelo para texto e sinapses",16,INK,true));
+        EditText textModel=field("gpt-4.1-mini",false,100);textModel.setText(read("text_model","gpt-4.1-mini"));content.addView(textModel);
         content.addView(label("Advice language", 16, INK, true));
         Spinner language = select(new String[]{"English (US)", "Português (Brasil)"});
-        language.setSelection(read("language", "en-US").startsWith("pt") ? 1 : 0); content.addView(language);
+        language.setSelection(read("language", "pt-BR").startsWith("pt") ? 1 : 0); content.addView(language);
         content.addView(label("Stop automatically after", 16, INK, true));
         Spinner minutes = select(new String[]{"10 minutes", "20 minutes", "45 minutes"});
         String stored = read("minutes", "10"); minutes.setSelection(stored.equals("45") ? 2 : stored.equals("20") ? 1 : 0); content.addView(minutes);
@@ -250,14 +266,16 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Connection & voice")
                 .setView(scroll).setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String newKey = key.getText().toString().trim(), newModel = model.getText().toString().trim();
+            String newKey = key.getText().toString().trim(), newModel = model.getText().toString().trim(), newTextModel=textModel.getText().toString().trim();
             if (!newKey.isEmpty() && (!(newKey.startsWith("sk-") || newKey.startsWith("ek_")) || newKey.matches("(?s).*\\s.*"))) {
                 key.setError("Use your OpenAI API key or a valid Realtime client secret."); return;
             }
             if (!newModel.matches("[A-Za-z0-9._-]{1,100}")) { model.setError("Use the exact model ID."); return; }
+            if (!newTextModel.matches("[A-Za-z0-9._-]{1,100}")) {textModel.setError("Confira o modelo de texto.");return;}
             try {
                 if (!newKey.isEmpty()) vault.put("api_key", newKey);
                 vault.put("model", newModel); vault.put("language", language.getSelectedItemPosition() == 1 ? "pt-BR" : "en-US");
+                vault.put("text_model",newTextModel);
                 vault.put("minutes", new String[]{"10", "20", "45"}[minutes.getSelectedItemPosition()]);
                 vault.put("headphones_only", String.valueOf(headphones.isChecked()));
                 key.setText(""); dialog.dismiss(); toast("Settings saved. Test private audio before listening.");

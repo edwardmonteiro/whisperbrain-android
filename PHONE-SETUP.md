@@ -1,44 +1,42 @@
-# WhisperBrain no seu telefone — 0.1.1-alpha
+# WhisperBrain 0.2 — primeiro uso no telefone
 
-[Compilação verificada](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34176235611): 41 verificações passaram. O novo teste no telefone ainda está pendente.
+## Caderno por texto
 
-## Instalar ou atualizar
+1. Abra **+ Nova sessão**.
+2. Dê um nome ao evento, por exemplo **Planejamento da semana**. A data é automática.
+3. Escreva no campo de texto e toque em **Salvar neurônio**.
+4. Feche e reabra o app: a sessão continua na lista, organizada por data.
 
-1. Abra [Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions) no navegador do telefone.
-2. Selecione a última execução bem-sucedida de **Build WhisperBrain APK**.
-3. Baixe o artefato **WhisperBrain-Android-APK**, extraia o ZIP e abra `app-debug.apk`.
+Esse fluxo funciona offline, sem chave e sem permissão de microfone.
 
-Esta versão tem assinatura de teste diferente da 0.1.0; para atualizar, a versão anterior precisará ser desinstalada. **Desinstalar apaga a chave salva, as configurações e as memórias.**
-Antes disso, guarde as notas que quiser manter e tenha sua chave disponível para inserir novamente no app.
+## Recomendações e sinapses
 
-## Teste de uma frase
+1. Abra **Configurar IA e voz** e insira sua chave da API.
+2. Volte à sessão e selecione **Relacionar outras conversas**, se desejar esse contexto.
+3. Digite uma pergunta e toque em **Gerar sinapses com IA**, ou use esse comando em uma nota já salva.
+4. Abra as ligações propostas para **Aceitar** ou **Remover ligação**.
+5. Explore **Grafo desta conversa** ou **Grafo de todas as conversas**.
 
-1. Abra **Testar áudio privado** e confira se ouve a voz pelo fone ou auricular.
-2. Em **Configurações de conexão e voz**, insira a chave da API, selecione **Português (Brasil)** e salve.
-3. Toque em **Iniciar escuta**. Aguarde **Ouvindo**; o botão deve mudar para **Parar escuta**.
-4. Diga: “Tenho uma reunião amanhã e preciso organizar minhas prioridades.”
-5. Pause por 3 segundos ou toque em **Analisar agora**.
-6. Veja o resumo perto do topo e o contador **respostas**. A voz aguarda uma pausa.
-7. Toque em **Parar escuta** para encerrar.
+Os comandos da IA usam internet e créditos de API, cobrados separadamente do ChatGPT.
 
-Com as dicas automáticas ativadas, uma fala contínua detectada também recebe análise a cada 20 segundos,
-sem depender da primeira pausa. Quando a IA não sugerir uma nova dica, o app mostra que a análise terminou.
-Ruído pode afetar a detecção; a análise manual também funciona sem um evento de pausa.
+## Áudio
 
-## Se continuar sem resposta
+- **Gravar áudio local** guarda uma nota de até 3 minutos no telefone.
+- Abra esse neurônio para ouvir em saída privada ou **Transcrever áudio com IA**.
+- **Escuta ao vivo** abre o modo de acompanhamento em tempo real.
+- Escolha se quer transcrições e se quer guardar também o arquivo de áudio.
+- Toque em **Iniciar escuta**, aguarde **Ouvindo** e teste uma frase.
+- Pause por 3 segundos ou use **Analisar agora**. Resumos e dicas serão adicionados à sessão.
+- O comando **Parar escuta** encerra o microfone; a sessão do caderno pode continuar por texto.
 
-Toque em **Copiar diagnóstico** e cole o texto na conversa de suporte.
-O texto contém status e contadores; não inclui chave, conteúdo da conversa, objetivo ou memórias.
+## Proteger seu histórico ao atualizar
 
-| Indicação | O que verificar |
-| --- | --- |
-| Ouvindo não aparece | Leia a mensagem de conexão/voz; o microfone só inicia após a preparação. |
-| Barra não se mexe | Acesso ao microfone no Android, permissão do app e outro app usando o microfone. |
-| Áudio enviado cresce, falas detectadas fica em zero | A API ainda não detectou voz. Fale perto do microfone e use Analisar agora. |
-| Falas detectadas cresce, respostas fica em zero | Use Analisar agora e copie o diagnóstico se a análise não terminar. |
-| Respostas cresce, mas não há voz | Veja o resumo e a dica; a IA pode escolher silêncio. Teste o áudio privado separadamente. |
-| Sem saldo / acesso negado | Confira chave, acesso ao modelo e faturamento da API OpenAI. |
+Use **Exportar caderno e áudios** e guarde o ZIP antes de qualquer desinstalação.
+O ZIP contém texto e áudio legíveis; não contém a chave da API. A importação preserva as sessões existentes.
+A assinatura do APK deve ser a mesma para atualizar sem desinstalar. Consulte a orientação que acompanha o APK entregue.
 
-A API é cobrada separadamente do ChatGPT. Use conversas de teste com a concordância dos participantes.
-O app capta áudio do microfone; não implementa gravação de chamadas.
-A versão continua experimental: testes locais de protocolo não comprovam conexão com a API real nem áudio no telefone.
+## Se algo falhar
+
+Na escuta ao vivo, use **Copiar diagnóstico**. O texto não contém chave, conversa nem memórias.
+No caderno, informe a ação e a mensagem exibida. Suas notas locais não dependem de a API responder.
+Ainda precisamos confirmar microfone, Bluetooth, auricular e uso com tela bloqueada no seu aparelho.
