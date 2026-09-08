@@ -1,6 +1,6 @@
 # WhisperBrain — Meu dia em temas
 
-Versão **0.4.0-alpha**, em validação. Um mapa diário dos temas presentes nas notificações recebidas do WhatsApp, com mensagens de origem e caderno local.
+Versão **0.4.0-alpha**, compilada e validada em emulador Android 16. Um mapa diário dos temas presentes nas notificações recebidas do WhatsApp, com mensagens de origem e caderno local.
 Desenvolvido e compilado na nuvem para uso de quem só tem um telefone.
 
 ## Meu dia · mapa do WhatsApp
@@ -155,12 +155,22 @@ A chave da API é inserida somente no app. A compilação e os testes não preci
 
 ## Validação
 
-A validação do APK 0.4 será registrada em `VALIDATION.json` após a execução do workflow.
-O workflow compila, executa regras de intervenção, testes JVM, lint e testes Android 16 em emulador.
-Os testes de mapas usam notificações e respostas de IA sintéticas; não precisam de uma conta real do WhatsApp
-nem de chamadas pagas à API. Os cenários incluem datas/fusos, seleção limitada, origem das evidências,
-migração, persistência criptografada, exclusão, backup/importação e renderização das telas.
-A instalação e as notificações reais no Samsung do usuário exigem confirmação no telefone.
+O [build de origem do APK 0.4](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34188632649)
+passou 40 testes JVM, 25 testes Android 16 (API 36) e 29 verificações de regras de intervenção.
+Lint: zero erros e 32 avisos. A assinatura final corresponde à entrega direta 0.3 e os 90 arquivos
+não pertencentes a `META-INF/` permaneceram idênticos ao build após a assinatura. O hash final está em `CHECKSUMS.txt`.
+
+A [conferência visual](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34189209565)
+usou o mesmo código de produção. Somente a captura nas instruções de teste foi ajustada, para renderizar
+as janelas nativas após o layout sem o bloqueio de superfícies protegidas. `FLAG_SECURE` permanece no app.
+Foram conferidas as telas inicial, mapa diário, fontes de um tema e dia vazio. Os testes também passaram nessa execução.
+
+Os cenários incluem datas/fusos, seleção limitada, referências das evidências, migração do banco,
+persistência criptografada, exclusão, backup/importação e recriação da atividade Android.
+Notificações e respostas de IA são sintéticas. Não houve conta real do WhatsApp nem chamadas pagas à API.
+Validação de IDs não comprova que a interpretação semântica da IA está correta.
+Instalação, notificações reais, qualidade e tempo das respostas, áudio e operação com tela bloqueada
+precisam ser confirmados no telefone do usuário. Veja `VALIDATION.json` para os resultados e limites completos.
 
 ## Referências oficiais
 

@@ -1,3 +1,4 @@
 661d4cd8f72cd7e35e46e23c65c68eb2212951cb7a0da61a77c3c13b0100f874  WhisperBrain-v0.1.1-alpha.apk
 1a33ae9a011ffa0ad22d0427ad54d9531d5922dcd6c0f798011c640d1ccc97c5  WhisperBrain-v0.2.0-alpha.apk
 6c037653968d960f852666610b668852a6064a9be3bb8beeec4bdba884df4b50  WhisperBrain-v0.3.0-alpha.apk
+295044681674a708464b2fbd95fd7a2ec892c9ef46645a7adcb63bfcbdab50af  WhisperBrain-v0.4.0-alpha.apk

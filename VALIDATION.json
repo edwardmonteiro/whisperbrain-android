@@ -2,14 +2,116 @@
   "date": "2026-09-08",
   "version": "0.4.0-alpha",
   "version_code": 5,
-  "status": "CLOUD_VALIDATION_PENDING",
+  "status": "CLOUD_VALIDATED_PHONE_TESTING_REQUIRED",
+  "application_id": "com.edward.whisperbrain",
+  "source_commit": "64de3d3312e4a2a6e92298f7dac939125f95e05e",
+  "source_workflow_run": {
+    "id": 34188632649,
+    "url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34188632649",
+    "conclusion": "success"
+  },
+  "checks": {
+    "intervention_policy_assertions_passed": 29,
+    "jvm_tests_passed": 40,
+    "android_device_tests_passed": 25,
+    "test_failures": 0,
+    "tests_skipped": 0,
+    "lint_errors": 0,
+    "lint_warnings": 32
+  },
+  "device_tests": {
+    "android_api": 36,
+    "android_version": "16",
+    "emulator_profile": "pixel_2",
+    "architecture": "x86_64",
+    "notification_fixtures": "synthetic WhatsApp-format notifications",
+    "ai_results": "synthetic topic-map fixtures; no real model inference",
+    "actual_whatsapp_account_tested": false,
+    "actual_user_samsung_tested": false,
+    "scope": [
+      "notification parsing, opt-in, cutoff and deduplication",
+      "real OS listener binding and permission revocation",
+      "daily source selection without microphone permission or API credentials",
+      "encrypted map persistence after database reopen",
+      "database schema migrations from versions 1 and 2 to 3",
+      "edited/deleted source invalidation and rejection of late results",
+      "new messages preserve the prior map with changed coverage",
+      "backup with daily Markdown and import rewiring source IDs",
+      "invalid map import preserves existing notebook",
+      "daily map, empty state and evidence UI; activity recreation"
+    ]
+  },
+  "protocol_tests": [
+    "timezone-aware day boundaries including daylight saving",
+    "balanced recent-message sampling and serialized character budget",
+    "ordinary notes, other apps and edited notifications excluded",
+    "topic and link source IDs constrained to selected evidence",
+    "topic and link integrity and empty-topic responses",
+    "request includes only selected notification data and no tools",
+    "fingerprint changes and import reference validation"
+  ],
+  "apk": {
+    "file_name": "WhisperBrain-v0.4.0-alpha.apk",
+    "size_bytes": 7043127,
+    "sha256": "295044681674a708464b2fbd95fd7a2ec892c9ef46645a7adcb63bfcbdab50af",
+    "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68",
+    "same_certificate_as_direct_0_3": true,
+    "payload_unchanged": true,
+    "payload_entries": 90,
+    "source_commit": "64de3d3312e4a2a6e92298f7dac939125f95e05e",
+    "source_workflow_run": 34188632649
+  },
+  "signing": {
+    "scheme": "v3",
+    "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68",
+    "same_certificate_as_direct_0_3": true,
+    "private_key_stored_separately": true,
+    "private_key_in_repository": false,
+    "direct_apk_uses_stable_personal_key": true,
+    "github_artifact_uses_runner_debug_key": true,
+    "upgrade_from_direct_0_2_or_0_3": "install over existing app; do not uninstall"
+  },
   "paid_api_requests_made": 0,
-  "scope": [
-    "WhatsApp daily themes from received notifications only",
-    "explicit bounded API request and source verification",
-    "timezone-aware daily selection and sample coverage",
-    "encrypted map persistence and database migration",
-    "source editing/deletion invalidation and backup reference rewiring",
-    "Android map and evidence screens"
-  ]
+  "not_verified": [
+    "real OpenAI analysis requests, semantic quality, latency and billing",
+    "real WhatsApp notifications on the user phone",
+    "installation and in-place update on a physical Samsung Android 16 device",
+    "screen-locked capture and manufacturer battery restrictions on the user phone",
+    "physical microphone, Bluetooth and earpiece routing"
+  ],
+  "known_limits": [
+    "personal sideloaded alpha",
+    "WhatsApp notification text only; no sent-message, read or participation confirmation",
+    "no Gmail, Slack or Discord connector",
+    "a day follows the selected phone timezone; the full WhatsApp history is unavailable",
+    "up to 120 selected messages and 60000 serialized message characters per request; each body is clipped to 1400 characters",
+    "up to 8 proposed topics and 8 proposed links; source validation does not prove semantic correctness",
+    "media files are not downloaded and hidden or absent notifications leave gaps",
+    "new messages require explicit re-analysis; there is no automatic paid request",
+    "90-second request timeout; canceling may not prevent provider processing or billing",
+    "edited notification notes are excluded and derived maps using changed/deleted sources are removed",
+    "one cached map per date and timezone; imported maps do not overwrite an existing map for that key",
+    "backups are readable and include daily maps; API credentials and signing keys are excluded",
+    "SQLite content is encrypted; IDs, dates, timezone keys and foreign-key relationships remain local metadata",
+    "existing audio and notebook limits remain documented in README.md"
+  ],
+  "visual_review": {
+    "status": "reviewed",
+    "source_commit": "54604868ffa8231abbb07061d044f04544cec02c",
+    "workflow_run_id": 34189209565,
+    "production_source_unchanged_from_apk_build": true,
+    "only_changed_file_since_apk_build": "app/src/androidTest/java/com/edward/whisperbrain/DailyMapDeviceTest.java",
+    "capture_method": "test-only native window view rendering after layout; synthetic data; production FLAG_SECURE unchanged",
+    "workflow_conclusion": "success",
+    "workflow_url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34189209565",
+    "artifact_sha256": "775a2176667e4eb1d1515cc410d15a0237aaba523c5071616900a783b320ea57",
+    "screenshots_captured": 9,
+    "reviewed_screens": [
+      "daily topic map",
+      "home with daily-map entry point",
+      "topic summary with source messages",
+      "empty day and capture instructions"
+    ],
+    "scope": "Four native Android window view renders with synthetic data; real phone and live model output still need user testing."
+  }
 }
