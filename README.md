@@ -5,7 +5,7 @@ Built for a workflow where your Android phone is your only computer.
 
 **Version 0.1.1-alpha addresses the first phone report: speech produced no visible response.**
 The exact cause on the phone is not yet confirmed. The code now avoids an indefinite VAD wait for manual analysis,
-checks long detected speech every 20 seconds, and displays input/response progress. See `VALIDATION.json` for build status.
+checks long detected speech every 20 seconds, and displays input/response progress. [Cloud build passed](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34176235611): 29 policy checks, 12 JVM tests, and Android lint with 0 errors (5 warnings). Phone retest is still pending.
 No paid AI requests were made during development. No API key is included.
 
 ## Build from your phone
@@ -81,8 +81,8 @@ robust echo cancellation, interruption handling, and server-side usage controls.
 
 ## Validation
 
-The updated policy passes 29 local behavioral checks. The cloud workflow also runs the advice-parser tests,
-local WebSocket protocol fixtures, Android compilation and lint. The protocol fixtures cover manual requests
+The cloud build passed 29 policy checks, 6 advice-parser tests, 6 local WebSocket protocol tests,
+Android compilation, APK assembly and lint (0 errors, 5 warnings). The protocol fixtures cover manual requests
 without VAD events, final text without deltas, and a correlated empty-buffer commit race. They do not call OpenAI.
 See `VALIDATION.json` for the actual tested commit, cloud outcome and downloadable artifact checksums.
 

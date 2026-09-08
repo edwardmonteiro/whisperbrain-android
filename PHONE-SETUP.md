@@ -1,13 +1,14 @@
 # WhisperBrain no seu telefone — 0.1.1-alpha
 
+[Compilação verificada](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34176235611): 41 verificações passaram. O novo teste no telefone ainda está pendente.
+
 ## Instalar ou atualizar
 
 1. Abra [Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions) no navegador do telefone.
 2. Selecione a última execução bem-sucedida de **Build WhisperBrain APK**.
 3. Baixe o artefato **WhisperBrain-Android-APK**, extraia o ZIP e abra `app-debug.apk`.
 
-A assinatura de teste pode mudar entre compilações. Se o Android recusar a atualização por conflito de assinatura,
-a versão anterior precisará ser desinstalada. **Desinstalar apaga a chave salva, as configurações e as memórias.**
+Esta versão tem assinatura de teste diferente da 0.1.0; para atualizar, a versão anterior precisará ser desinstalada. **Desinstalar apaga a chave salva, as configurações e as memórias.**
 Antes disso, guarde as notas que quiser manter e tenha sua chave disponível para inserir novamente no app.
 
 ## Teste de uma frase

@@ -1,14 +1,51 @@
 {
+  "apk_file": "WhisperBrain-v0.1.1-alpha.apk",
+  "apk_size_bytes": 3608242,
+  "apk_sha256": "661d4cd8f72cd7e35e46e23c65c68eb2212951cb7a0da61a77c3c13b0100f874",
+  "certificate_sha256": "e446a45aeedd796d58a092363a10fb62a44b50e5452039ce73c6a49162c11d72",
+  "same_certificate_as_0_1_0": false,
+  "jvm_tests": 12,
+  "jvm_failures": 0,
+  "lint_warnings": 5,
+  "lint_errors": 0,
   "date": "2026-09-08",
   "version": "0.1.1-alpha",
-  "status": "CLOUD_BUILD_PENDING",
+  "status": "APK_BUILT_PHONE_RETEST_PENDING",
+  "source_commit": "3eb8bf4a8f0cc8fc21829bddad0d148ba3201b3f",
+  "workflow_run_id": 34176235611,
+  "workflow_url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34176235611",
+  "cloud_build": "success",
   "intervention_policy_checks": {
     "passed": 29
   },
+  "jvm_advice_parser_tests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "jvm_realtime_protocol_tests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "android_compilation": "passed",
+  "debug_apk_assembly": "passed",
+  "artifact_id": 10037348754,
+  "artifact_zip_sha256": "efe80e9874c635093d179256bab236cc08e77effbc9d9ea06173279f828de22b",
+  "artifact_sha256_verified": true,
+  "apk_signing_block_present": true,
   "paid_api_requests_made": 0,
   "phone_report": "User spoke for 30 seconds with no visible response in 0.1.0; exact device cause not yet established.",
+  "changes": [
+    "manual analysis commits audio without waiting for VAD",
+    "visible context checkpoints during long detected speech",
+    "read final response text as well as deltas",
+    "progress indicators and copyable diagnostics",
+    "retain pending advice briefly for the next pause"
+  ],
+  "upgrade_from_0_1_0": "Different debug certificate: uninstall is required before installing 0.1.1 on an ordinary device. Uninstall deletes the saved key, settings and notes.",
   "pending": [
-    "cloud compilation and WebSocket fixture tests",
-    "live API and physical phone retest"
+    "live OpenAI authentication and response behavior",
+    "physical microphone and private audio routing",
+    "user retest of the reported silence",
+    "screen-lock, Bluetooth, interruption and timeout behavior on the phone"
   ]
 }
