@@ -57,13 +57,14 @@ public final class NotebookActivity extends ComponentActivity {
     private final Runnable refreshLive=new Runnable(){public void run(){if(!visible)return;long revision=WhatsAppCapture.revision();if(captureRevision!=revision||(SessionState.active||SessionState.savingAudio)&&mode.equals("session")){captureRevision=revision;refresh();}main.postDelayed(this,2500);}};
     private void persistDraft(){if(editor!=null&&!current.isEmpty())try{vault.put("draft:"+current,editor.getText().toString());}catch(Exception e){message("Rascunho ainda não foi salvo. Use Salvar neurônio.");}}
     private void clearViews(){if(graphSearch!=null)main.removeCallbacks(graphSearch);editor=null;search=null;timeline=null;sessionList=null;graphList=null;aiStatus=null;sessionMeta=null;aiButton=null;across=null;recordButton=null;recStatus=null;whatsappStatus=null;}
-    private LinearLayout shell(String title,String caption){clearViews();LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.3",14,NotebookUi.TEAL));root.addView(ui.title(title,30));root.addView(ui.text(caption,15,NotebookUi.MUTED));return root;}
+    private LinearLayout shell(String title,String caption){clearViews();LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.4",14,NotebookUi.TEAL));root.addView(ui.title(title,30));root.addView(ui.text(caption,15,NotebookUi.MUTED));return root;}
     private void showHome()throws Exception {
         if(recorder!=null)finishRecording();persistDraft();current="";mode="home";back.setEnabled(false);focus="";
-        LinearLayout root=shell("Seu segundo cérebro", "Conversas viram notas. Notas criam conexões.");
+        LinearLayout root=shell("Seu dia em conexões", "Temas do WhatsApp, mensagens de origem e caderno local.");
         if(SessionState.active)ui.button(root,"Voltar à sessão com escuta ativa",false,()->act(()->showSession(SessionState.sessionId)));
-        LinearLayout hero=ui.card(root);hero.addView(ui.title("Um espaço para cada conversa",20));hero.addView(ui.text("Escreva offline, grave um áudio ou acompanhe uma conversa ao vivo.",16,NotebookUi.MUTED));
-        ui.button(hero,"+ Nova sessão",true,this::newSession);
+        LinearLayout hero=ui.card(root);hero.addView(ui.title("Quais temas apareceram hoje?",22));hero.addView(ui.text("Explore as notificações recebidas em um mapa por assunto e data.",17,NotebookUi.MUTED));
+        ui.button(hero,"Meu dia · mapa do WhatsApp",true,()->startActivity(new Intent(this,DailyMapActivity.class)));
+        ui.button(root,"+ Nova sessão",false,this::newSession);
         ui.button(root,"WhatsApp · novas mensagens",false,()->startActivity(new Intent(this,WhatsAppActivity.class)));
         whatsappStatus=ui.text(WhatsAppCapture.status(this),14,NotebookUi.TEAL);root.addView(whatsappStatus);
         ui.button(root,"Grafo de todas as conversas",false,()->act(()->showGraph("")));
@@ -71,7 +72,7 @@ public final class NotebookActivity extends ComponentActivity {
         ui.button(root,"Configurar IA e voz",false,()->startActivity(new Intent(this,MainActivity.class).putExtra("settings",true)));
         ui.button(root,"Exportar caderno e áudios",false,this::exportNotebook);
         ui.button(root,"Importar um backup",false,this::importNotebook);
-        root.addView(ui.text("Notas e grafo ficam criptografados neste telefone. A IA recebe contexto somente ao gerar sinapses ou iniciar a escuta.",14,NotebookUi.MUTED));
+        root.addView(ui.text("Notas e mapas ficam criptografados neste telefone. Você escolhe quando analisar mensagens, gerar sinapses ou iniciar a escuta com IA.",14,NotebookUi.MUTED));
         listSessions();
     }
     private void listSessions()throws Exception {

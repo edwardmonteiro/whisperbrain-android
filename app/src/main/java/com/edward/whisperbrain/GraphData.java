@@ -51,6 +51,9 @@ public final class GraphData {
             required(e.getString("relation"),80); e.getLong("created");
             if(e.optString("reason").length()>2000) throw new IllegalArgumentException("Justificativa grande demais.");
         }
+        JSONArray maps=backup.optJSONArray("daily_maps");
+        if(maps!=null){if(maps.length()>1000)throw new IllegalArgumentException("Backup excede 1.000 mapas diários.");Set<String> keys=new HashSet<>();
+            for(int i=0;i<maps.length();i++){JSONObject map=maps.getJSONObject(i);if(!keys.add(map.getString("id")))throw new IllegalArgumentException("Mapa diário duplicado.");DailyMapData.validateSaved(map,nodes);}}
     }
     public static JSONObject parseSuggestion(String raw, Set<String> allowedIds, String focusId) throws Exception {
         JSONObject in=new JSONObject(raw), out=new JSONObject();

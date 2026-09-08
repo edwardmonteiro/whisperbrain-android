@@ -54,5 +54,5 @@ public final class WhatsAppCapture {
     }
     static void error(Context c,String message){synchronized(LOCK){prefs(c).edit().putString("error",message).apply();revision.incrementAndGet();}}
     public static String status(Context c){if(!enabled(c))return "Captura pausada";if(!permitted(c))return "Aguardando permissão do Android";if(!connected)return "Aguardando conexão do Android";return "Capturando novas mensagens";}
-    public static String diagnostics(Context c){SharedPreferences p=prefs(c);return "WhisperBrain 0.3.0-alpha\nWhatsApp: "+status(c)+"\nAtivado: "+enabled(c)+"\nPermissão: "+permitted(c)+"\nConectado: "+connected+"\nWhatsApp Business: "+business(c)+"\nNotificações processadas: "+p.getLong("received",0)+"\nMensagens salvas: "+p.getLong("saved",0)+"\nSem mensagem nova aproveitável: "+p.getLong("ignored",0)+"\nAviso: "+p.getString("error","");}
+    public static String diagnostics(Context c){SharedPreferences p=prefs(c);return "WhisperBrain 0.4.0-alpha\nWhatsApp: "+status(c)+"\nAtivado: "+enabled(c)+"\nPermissão: "+permitted(c)+"\nConectado: "+connected+"\nWhatsApp Business: "+business(c)+"\nNotificações processadas: "+p.getLong("received",0)+"\nMensagens salvas: "+p.getLong("saved",0)+"\nSem mensagem nova aproveitável: "+p.getLong("ignored",0)+"\nAviso: "+p.getString("error","");}
 }

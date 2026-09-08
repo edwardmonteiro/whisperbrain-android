@@ -1,95 +1,15 @@
 {
   "date": "2026-09-08",
-  "version": "0.3.0-alpha",
-  "version_code": 4,
-  "status": "CLOUD_VALIDATED_PHONE_TESTING_REQUIRED",
-  "application_id": "com.edward.whisperbrain",
-  "source_commit": "a083eec3af8b890b7628f77a6afdbc95c227d396",
-  "source_workflow_run": {
-    "id": 34185332246,
-    "url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34185332246",
-    "conclusion": "success"
-  },
-  "checks": {
-    "intervention_policy_assertions_passed": 29,
-    "jvm_tests_passed": 26,
-    "android_device_tests_passed": 16,
-    "test_failures": 0,
-    "tests_skipped": 0,
-    "lint_errors": 0,
-    "lint_warnings": 28
-  },
-  "device_tests": {
-    "android_api": 36,
-    "android_version": "16",
-    "emulator_profile": "pixel_2",
-    "architecture": "x86_64",
-    "notification_fixtures": "synthetic WhatsApp-format Android notifications",
-    "actual_whatsapp_account_tested": false,
-    "actual_user_samsung_tested": false,
-    "scope": [
-      "offline text creation without microphone permission or API credentials",
-      "encrypted notes and links persist after database reopen",
-      "deletion, backup/import with audio, graph counts and AI proposal review",
-      "notification opt-in, pause and resume with an activation timestamp cutoff",
-      "persistent deduplication, identical text with distinct timestamps, and deleted-note replay prevention",
-      "per-conversation daily sessions and notification provenance",
-      "version 1 database migration preserving existing notebook data",
-      "real Android notification-listener binding and permission revocation in the emulator"
-    ]
-  },
-  "visual_review": {
-    "source_commit": "a083eec3af8b890b7628f77a6afdbc95c227d396",
-    "workflow_run_id": 34185332246,
-    "screenshots_captured": 5,
-    "reviewed_screens": [
-      "home",
-      "WhatsApp notification capture"
-    ],
-    "scope": "Visual inspection of the two changed screens in the Android 16 emulator; no physical phone inspection."
-  },
-  "apk": {
-    "file_name": "WhisperBrain-v0.3.0-alpha.apk",
-    "size_bytes": 6985783,
-    "sha256": "6c037653968d960f852666610b668852a6064a9be3bb8beeec4bdba884df4b50",
-    "unsigned_payload_entries_match": true,
-    "payload_entry_count": 111,
-    "source_run_id": 34185332246,
-    "source_commit": "a083eec3af8b890b7628f77a6afdbc95c227d396",
-    "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68"
-  },
-  "signing": {
-    "scheme": "v3",
-    "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68",
-    "same_certificate_as_direct_0_2": true,
-    "upgrade_from_direct_0_2": "install over existing app; do not uninstall",
-    "private_key_stored_separately": true,
-    "private_key_in_repository": false,
-    "github_artifact_uses_runner_debug_key": true,
-    "direct_apk_uses_stable_personal_key": true,
-    "upgrade_from_0_1_requires_uninstall": true
-  },
+  "version": "0.4.0-alpha",
+  "version_code": 5,
+  "status": "CLOUD_VALIDATION_PENDING",
   "paid_api_requests_made": 0,
-  "not_verified": [
-    "real WhatsApp notifications on the user phone",
-    "installation and in-place update on a physical Samsung Android 16 device",
-    "screen-locked operation and manufacturer battery restrictions on the user phone",
-    "real OpenAI Realtime, Responses or transcription requests, response quality and latency",
-    "physical microphone, Bluetooth and earpiece audio routing on the user phone"
-  ],
-  "known_limits": [
-    "alpha build for personal sideloading",
-    "notification capture uses only visible message fields published after activation; no private database or history access",
-    "outgoing messages, hidden content, connection gaps and unsupported notification formats can leave incomplete conversations",
-    "media files are not downloaded or opened; only notification text or attachment placeholders are captured",
-    "capture is local and makes no AI request; the user explicitly starts AI analysis",
-    "fallback conversation identity depends on the notification key and title; renaming can split a conversation",
-    "graph displays up to 180 recent matching notes; reopen an active graph to load new captures",
-    "native offline Android TTS is quiet speech, not neural whisper-style audio",
-    "local audio notes: 3 minutes; optional continuous live recording: 45 minutes; saved-audio transcription upload: 24 MB",
-    "backup import limit: 500 MB, 5000 sessions, 30000 notes, 100000 links",
-    "exported backup is readable and excludes API credentials",
-    "SQLite content is encrypted; IDs, foreign-key relationships and timestamps remain local metadata",
-    "final live transcript may be incomplete when a session stops abruptly"
+  "scope": [
+    "WhatsApp daily themes from received notifications only",
+    "explicit bounded API request and source verification",
+    "timezone-aware daily selection and sample coverage",
+    "encrypted map persistence and database migration",
+    "source editing/deletion invalidation and backup reference rewiring",
+    "Android map and evidence screens"
   ]
 }

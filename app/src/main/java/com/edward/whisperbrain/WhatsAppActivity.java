@@ -17,7 +17,7 @@ public final class WhatsAppActivity extends ComponentActivity {
     private final Handler main=new Handler(Looper.getMainLooper());private boolean visible;
     private final Runnable poll=new Runnable(){public void run(){if(!visible)return;refresh();main.postDelayed(this,1500);}};
     @Override public void onCreate(Bundle saved){super.onCreate(saved);getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);getWindow().setDecorFitsSystemWindows(false);ui=new NotebookUi(this);
-        LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.3",14,NotebookUi.TEAL));root.addView(ui.title("WhatsApp",30));
+        LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.4",14,NotebookUi.TEAL));root.addView(ui.title("WhatsApp",30));
         root.addView(ui.text("Novas mensagens no seu caderno, mesmo com o microfone desligado.",17,NotebookUi.MUTED));
         LinearLayout card=ui.card(root);state=ui.title("",22);card.addView(state);counts=ui.text("",15,NotebookUi.MUTED);card.addView(counts);
         toggle=ui.button(card,"Ativar captura",true,()->{try{boolean enable=!WhatsAppCapture.enabled(this);WhatsAppCapture.setEnabled(this,enable);refresh();if(enable&&!WhatsAppCapture.permitted(this))permission();}catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}});
@@ -25,6 +25,7 @@ public final class WhatsAppActivity extends ComponentActivity {
         Switch business=new Switch(this);business.setText("Incluir WhatsApp Business");business.setTextSize(16);business.setTextColor(NotebookUi.INK);business.setChecked(WhatsAppCapture.business(this));card.addView(business);
         business.setOnCheckedChangeListener((b,on)->{try{WhatsAppCapture.setBusiness(this,on);refresh();}catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}});
         warning=ui.text("",15,NotebookUi.AMBER);root.addView(warning);
+        ui.button(root,"Meu dia · mapa do WhatsApp",true,()->startActivity(new Intent(this,DailyMapActivity.class)));
         ui.button(root,"Ver conversas salvas",false,()->{startActivity(new Intent(this,NotebookActivity.class).putExtra("query","WhatsApp"));finish();});
         root.addView(ui.title("Como funciona",22));
         root.addView(ui.text("Cada conversa ganha uma sessão por dia, com nome, remetente e horário. Mensagens repetidas são filtradas. Pausar preserva as notas já salvas.",16,NotebookUi.INK));

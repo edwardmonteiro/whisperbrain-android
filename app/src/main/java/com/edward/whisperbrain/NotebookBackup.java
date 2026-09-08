@@ -14,6 +14,13 @@ public final class NotebookBackup {
         JSONObject data=NotebookStore.get(context).snapshot();GraphData.validate(data);
         try(ZipOutputStream out=new ZipOutputStream(target)) {
             entry(out,"notebook.json",data.toString(2));
+            JSONArray maps=data.optJSONArray("daily_maps");
+            if(maps!=null)for(int i=0;i<maps.length();i++){
+                JSONObject map=maps.getJSONObject(i);StringBuilder md=new StringBuilder("# Meu dia · "+map.getString("day")+"\n\nTemas sugeridos pela IA a partir de notificações recebidas.\n\nFuso: "+map.getString("zone")+"\n\nMensagens selecionadas: "+map.getInt("selected")+" de "+map.getInt("total")+"\n\n");
+                JSONArray topics=map.getJSONArray("topics");for(int j=0;j<topics.length();j++){JSONObject topic=topics.getJSONObject(j);md.append("## ").append(topic.getString("label")).append("\n\n").append(topic.getString("summary")).append("\n\n").append(topic.getString("reason")).append("\n\n");JSONArray refs=topic.getJSONArray("source_ids");for(int k=0;k<refs.length();k++)md.append("- [[").append(refs.getString(k)).append("]]\n");md.append("\n");}
+                JSONArray links=map.getJSONArray("links");for(int j=0;j<links.length();j++){JSONObject link=links.getJSONObject(j);md.append("- ").append(link.getString("from")).append(" → ").append(link.getString("to")).append(": ").append(link.getString("label")).append(" — ").append(link.getString("reason")).append("\n");}
+                entry(out,"days/"+map.getString("day")+"-"+i+".md",md.toString());
+            }
             JSONArray sessions=data.getJSONArray("sessions"),nodes=data.getJSONArray("nodes"),edges=data.getJSONArray("edges");
             Set<String> copied=new HashSet<>();
             for(int i=0;i<sessions.length();i++) {

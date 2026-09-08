@@ -21,7 +21,7 @@ public final class SessionState {
         hearing = "Preparando a conexão; microfone ainda desligado.";
     }
     public static String diagnostics() {
-        return "WhisperBrain 0.3.0-alpha\nStatus: " + status + "\nDetalhe: " + detail
+        return "WhisperBrain 0.4.0-alpha\nStatus: " + status + "\nDetalhe: " + detail
                 + "\nEscuta: " + hearing + "\nConectado: " + connected + "\nMicrofone: " + input
                 + "\nSaída: " + route + "\nNível: " + level + "%\nBytes de áudio enviados: " + audioBytes
                 + "\nFalas detectadas: " + speechEvents + "\nTrechos recebidos: " + turns

@@ -1,7 +1,45 @@
-# WhisperBrain — caderno local com IA e áudio
+# WhisperBrain — Meu dia em temas
 
-Versão **0.3.0-alpha**, compilada e validada em emulador Android 16. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
+Versão **0.4.0-alpha**, em validação. Um mapa diário dos temas presentes nas notificações recebidas do WhatsApp, com mensagens de origem e caderno local.
 Desenvolvido e compilado na nuvem para uso de quem só tem um telefone.
+
+## Meu dia · mapa do WhatsApp
+
+1. Ative a captura em **WhatsApp · novas mensagens** e conceda acesso às notificações no Android.
+2. Aguarde uma notificação recebida e abra **Meu dia · mapa do WhatsApp**.
+3. Escolha a data. As contagens mostram somente mensagens elegíveis daquele dia no fuso do telefone.
+4. Configure uma chave da API OpenAI em **Configurar IA**.
+5. Toque em **Analisar meu dia · IA** e confira o envio dos trechos selecionados.
+6. Explore os temas no mapa ou na lista. Toque em um tema para conferir as mensagens de origem.
+
+Cada análise propõe até 8 temas e 8 ligações entre temas. Uma conversa pode aparecer em vários temas;
+um tema pode reunir mensagens de conversas diferentes. Resumos e motivos são interpretações da IA,
+não comprovação de leitura, respostas, decisões ou participação do usuário.
+O protótipo analisa somente mensagens recebidas pelas notificações: Gmail, Slack e Discord não estão conectados.
+
+A seleção alterna mensagens recentes de cada conversa salva, até 120 mensagens e 60.000 caracteres de mensagens
+serializadas. Cada texto tem até 1.400 caracteres; nomes e horários também entram no pedido.
+A tela informa seleção, total disponível e textos abreviados. Essa amostra pode deixar temas de fora.
+Saudações e anexos sem texto podem não gerar temas. Notas modificadas pelo usuário ficam fora da análise,
+para não serem tratadas como texto original recebido.
+
+A API só é chamada após o comando de análise e a confirmação de envio. Usa o modelo de texto configurado,
+inicialmente `gpt-4.1-mini`, saída JSON estruturada, `store:false`, sem ferramentas nem ações externas.
+O app valida que os IDs citados pertencem à amostra e que ligações têm evidências de ambos os temas.
+Essa validação não garante a correção semântica da resposta: confira os trechos citados.
+O pedido tem timeout de 90 segundos e não é repetido automaticamente.
+Cancelar interrompe a espera, mas a API pode já ter processado e cobrado o pedido.
+
+O mapa fica criptografado no telefone e pode ser reaberto offline. Mensagens novas sinalizam que a análise
+está desatualizada; não provocam outro gasto de API. Editar ou apagar uma mensagem usada na análise remove
+os mapas derivados dela. Uma resposta atrasada não restaura mapas de mensagens editadas ou apagadas.
+**Excluir análise deste dia** remove somente o mapa; as notificações permanecem no caderno.
+
+O esquema SQLite migra de 2 para 3 sem apagar sessões, notas ou ligações.
+O backup inclui mapas no JSON e um Markdown por dia em `days/`. Na importação, as referências são reescritas
+para os novos IDs. Se já existir um mapa da mesma data e fuso, ele é preservado.
+Um mapa importado é sinalizado para atualização, pois o conjunto local de mensagens pode ter mudado.
+Backups das versões anteriores continuam aceitos. As versões antigas do app não restauram os mapas diários.
 
 ## O modelo do caderno
 
@@ -106,9 +144,9 @@ Guarde o backup em um lugar que você controla. Apagar o app também apaga seus 
 Abra [Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions), escolha a última execução bem-sucedida e baixe **WhisperBrain-Android-APK**.
 Extraia o ZIP e abra `app-debug.apk`. Uma nova alteração do código inicia outra compilação.
 Os APKs desse artefato usam assinatura de depuração do runner; a assinatura pode mudar entre execuções.
-A entrega direta `WhisperBrain-v0.3.0-alpha.apk` usa uma assinatura pessoal estável, identificada em `VALIDATION.json`.
+A entrega direta `WhisperBrain-v0.4.0-alpha.apk` usa uma assinatura pessoal estável, identificada em `VALIDATION.json`.
 A chave privada foi guardada separadamente; ela não faz parte deste repositório nem dos artefatos públicos.
-A atualização da entrega direta 0.2 para 0.3 usa a mesma assinatura e preserva o caderno; instale sobre a versão existente.
+A entrega direta 0.4 usa a mesma assinatura das entregas diretas 0.2 e 0.3; instale sobre a versão existente para preservar o caderno.
 A passagem dos APKs 0.1.0/0.1.1 para essa entrega exige desinstalar a versão antiga, apagando seus dados internos.
 Tenha sua chave da API e memórias importantes disponíveis antes disso. Veja [o guia de instalação](PHONE-SETUP.md).
 
@@ -117,21 +155,12 @@ A chave da API é inserida somente no app. A compilação e os testes não preci
 
 ## Validação
 
-Veja `VALIDATION.json` para os resultados do código usado neste APK.
-O [build da versão 0.3](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34185332246) passou:
-26 testes JVM, 16 testes Android em emulador Android 16 (API 36) e 29 verificações de regras de intervenção.
-O lint terminou sem erros, com 28 avisos. As telas inicial e de captura do WhatsApp foram conferidas visualmente.
-
-Os testes cobrem notas offline, persistência criptografada, backup com áudio, grafos e revisão de propostas da IA.
-Para notificações, usam mensagens sintéticas no formato do WhatsApp e verificam ativação/pausa,
-recorte temporal, deduplicação, origem das mensagens e migração do banco existente.
-Um teste no emulador verifica também a conexão e a revogação do listener pelo próprio Android.
-Não foi usada uma conta real do WhatsApp nem foram feitas chamadas pagas à IA.
-
-A assinatura final foi verificada e coincide com a entrega direta 0.2. Os 111 arquivos de conteúdo
-do APK permaneceram idênticos aos do build após a assinatura. O hash final está em `CHECKSUMS.txt`.
-Instalação, notificações reais e operação com tela bloqueada ainda precisam ser confirmadas no Samsung do usuário.
-Conectividade real com OpenAI, qualidade das respostas, Bluetooth, auricular e gravação física também exigem teste no telefone.
+A validação do APK 0.4 será registrada em `VALIDATION.json` após a execução do workflow.
+O workflow compila, executa regras de intervenção, testes JVM, lint e testes Android 16 em emulador.
+Os testes de mapas usam notificações e respostas de IA sintéticas; não precisam de uma conta real do WhatsApp
+nem de chamadas pagas à API. Os cenários incluem datas/fusos, seleção limitada, origem das evidências,
+migração, persistência criptografada, exclusão, backup/importação e renderização das telas.
+A instalação e as notificações reais no Samsung do usuário exigem confirmação no telefone.
 
 ## Referências oficiais
 

@@ -15,7 +15,7 @@ public final class NotebookStore extends SQLiteOpenHelper {
         if(instance==null) instance=new NotebookStore(context.getApplicationContext()); return instance;
     }
     private byte[] notificationSecret;
-    private NotebookStore(Context c) {super(c,"notebook.db",null,2);context=c;vault=new Vault(c);}
+    private NotebookStore(Context c) {super(c,"notebook.db",null,3);context=c;vault=new Vault(c);}
     @Override public void onConfigure(SQLiteDatabase db) {db.setForeignKeyConstraintsEnabled(true);}
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id TEXT PRIMARY KEY, created INTEGER NOT NULL, payload TEXT NOT NULL)");
@@ -24,13 +24,18 @@ public final class NotebookStore extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE edges (id TEXT PRIMARY KEY, source TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE, target TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE, created INTEGER NOT NULL, payload TEXT NOT NULL)");
         db.execSQL("CREATE INDEX edge_source ON edges(source)"); db.execSQL("CREATE INDEX edge_target ON edges(target)");
         notificationTables(db);
+        dailyMapTables(db);
     }
     private void notificationTables(SQLiteDatabase db){
         db.execSQL("CREATE TABLE notification_threads (thread_key TEXT PRIMARY KEY, day TEXT NOT NULL, session TEXT REFERENCES sessions(id) ON DELETE SET NULL, last_node TEXT REFERENCES nodes(id) ON DELETE SET NULL)");
         db.execSQL("CREATE TABLE notification_seen (fingerprint TEXT PRIMARY KEY, source_time INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX notification_seen_time ON notification_seen(source_time)");
     }
-    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {if(oldVersion<2)notificationTables(db);}
+    private void dailyMapTables(SQLiteDatabase db){
+        db.execSQL("CREATE TABLE IF NOT EXISTS daily_maps (id TEXT PRIMARY KEY, created INTEGER NOT NULL, payload TEXT NOT NULL)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS nodes_created ON nodes(created)");
+    }
+    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {if(oldVersion<2)notificationTables(db);if(oldVersion<3)dailyMapTables(db);}
     private JSONObject decode(String table, Cursor c) throws Exception {return new JSONObject(vault.open(table+":"+c.getString(0),c.getString(1)));}
     private JSONArray rows(String table,String where,String[] args,String order) throws Exception {
         JSONArray out=new JSONArray();
@@ -64,7 +69,8 @@ public final class NotebookStore extends SQLiteOpenHelper {
         write("nodes",n,false);return n;
     }
     public synchronized void updateNote(String id,String title,String body) throws Exception {
-        JSONObject n=node(id);n.put("title",GraphData.required(title,160)).put("body",GraphData.required(body,20000)).put("updated",System.currentTimeMillis()).put("edited_by_user",true);write("nodes",n,true);
+        JSONObject n=node(id);n.put("title",GraphData.required(title,160)).put("body",GraphData.required(body,20000)).put("updated",System.currentTimeMillis()).put("edited_by_user",true);
+        SQLiteDatabase db=getWritableDatabase();db.beginTransaction();try{purgeDailyMaps(Set.of(id));write("nodes",n,true);db.setTransactionSuccessful();}finally{db.endTransaction();}
     }
     public synchronized JSONObject addAudio(String session,String attachment,String format,long duration) throws Exception {
         SQLiteDatabase db=getWritableDatabase();db.beginTransaction();
@@ -80,8 +86,8 @@ public final class NotebookStore extends SQLiteOpenHelper {
     }
     public synchronized void acceptEdge(String id) throws Exception {JSONObject e=one("edges",id);e.put("state","accepted");write("edges",e,true);}
     public synchronized void deleteEdge(String id) {getWritableDatabase().delete("edges","id=?",new String[]{id});}
-    public synchronized void deleteNode(String id) throws Exception {JSONObject n=node(id);getWritableDatabase().delete("nodes","id=?",new String[]{id});AudioArchive.delete(context,n.optString("attachment"));}
-    public synchronized void deleteSession(String id) throws Exception {JSONArray n=nodes(id);getWritableDatabase().delete("sessions","id=?",new String[]{id});for(int i=0;i<n.length();i++)AudioArchive.delete(context,n.getJSONObject(i).optString("attachment"));}
+    public synchronized void deleteNode(String id) throws Exception {JSONObject n=node(id);SQLiteDatabase db=getWritableDatabase();db.beginTransaction();try{purgeDailyMaps(Set.of(id));db.delete("nodes","id=?",new String[]{id});db.setTransactionSuccessful();}finally{db.endTransaction();}AudioArchive.delete(context,n.optString("attachment"));}
+    public synchronized void deleteSession(String id) throws Exception {JSONArray n=nodes(id);Set<String> ids=new HashSet<>();for(int i=0;i<n.length();i++)ids.add(n.getJSONObject(i).getString("id"));SQLiteDatabase db=getWritableDatabase();db.beginTransaction();try{purgeDailyMaps(ids);db.delete("sessions","id=?",new String[]{id});db.setTransactionSuccessful();}finally{db.endTransaction();}for(int i=0;i<n.length();i++)AudioArchive.delete(context,n.getJSONObject(i).optString("attachment"));}
     public synchronized JSONObject saveSuggestion(String focusId,JSONObject suggestion,String model) throws Exception {
         SQLiteDatabase db=getWritableDatabase();db.beginTransaction();
         try {
@@ -93,7 +99,22 @@ public final class NotebookStore extends SQLiteOpenHelper {
             db.setTransactionSuccessful();return n;
         } finally {db.endTransaction();}
     }
-    public synchronized JSONObject snapshot() throws Exception {return new JSONObject().put("version",GraphData.VERSION).put("sessions",sessions()).put("nodes",nodes(null)).put("edges",edges());}
+    public synchronized JSONObject snapshot() throws Exception {return new JSONObject().put("version",GraphData.VERSION).put("sessions",sessions()).put("nodes",nodes(null)).put("edges",edges()).put("daily_maps",rows("daily_maps",null,null,"created ASC"));}
+    public synchronized JSONArray dailyNotifications(String day,String zone)throws Exception {
+        return DailyMapData.day(rows("nodes","created>=? AND created<?",new String[]{Long.toString(DailyMapData.start(day,zone)),Long.toString(DailyMapData.end(day,zone))},"created ASC"),day,zone);
+    }
+    public synchronized JSONObject dailyMap(String day,String zone)throws Exception {JSONArray maps=rows("daily_maps","id=?",new String[]{DailyMapData.key(day,zone)},null);return maps.length()==0?null:maps.getJSONObject(0);}
+    public synchronized void deleteDailyMap(String day,String zone){getWritableDatabase().delete("daily_maps","id=?",new String[]{DailyMapData.key(day,zone)});}
+    /** Reject responses whose selected evidence changed or was deleted while the request was in flight. */
+    public synchronized void saveDailyMap(JSONObject map,JSONArray originals)throws Exception {
+        JSONArray fresh=new JSONArray();Set<String> expected=new HashSet<>();for(int i=0;i<originals.length();i++){String id=originals.getJSONObject(i).getString("id");expected.add(id);fresh.put(node(id));}
+        if(!expected.equals(DailyMapData.ids(map.getJSONArray("source_ids")))||!DailyMapData.fingerprint(originals).equals(DailyMapData.fingerprint(fresh)))throw new IllegalArgumentException("As mensagens foram alteradas durante a análise. Atualize o dia.");
+        DailyMapData.validateSaved(map,fresh);write("daily_maps",map,dailyMap(map.getString("day"),map.getString("zone"))!=null);
+    }
+    private void purgeDailyMaps(Set<String> deleted)throws Exception {
+        if(deleted.isEmpty())return;JSONArray maps=rows("daily_maps",null,null,null);
+        for(int i=0;i<maps.length();i++){JSONObject map=maps.getJSONObject(i);if(!Collections.disjoint(deleted,DailyMapData.ids(map.getJSONArray("source_ids"))))getWritableDatabase().delete("daily_maps","id=?",new String[]{map.getString("id")});}
+    }
     private byte[] notificationSecret()throws Exception{
         if(notificationSecret==null){String encoded=vault.get("notification_hash_secret","");
             if(encoded.isEmpty()){byte[] key=new byte[32];new java.security.SecureRandom().nextBytes(key);encoded=android.util.Base64.encodeToString(key,android.util.Base64.NO_WRAP);vault.put("notification_hash_secret",encoded);}
@@ -142,6 +163,8 @@ public final class NotebookStore extends SQLiteOpenHelper {
                     write(table,n,false);
                 }
             }
+            JSONArray maps=backup.optJSONArray("daily_maps");
+            if(maps!=null)for(int i=0;i<maps.length();i++){JSONObject imported=DailyMapData.remap(maps.getJSONObject(i),map);if(dailyMap(imported.getString("day"),imported.getString("zone"))==null)write("daily_maps",imported,false);}
             db.setTransactionSuccessful();
         } finally {db.endTransaction();}
     }

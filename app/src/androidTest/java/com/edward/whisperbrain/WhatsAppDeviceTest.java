@@ -89,7 +89,7 @@ public class WhatsAppDeviceTest {
         JSONObject s=store.createSession("Caderno 0.2"),a=store.addNode(s.getString("id"),"Preservar","Conteúdo anterior","note","user"),b=store.addNode(s.getString("id"),"Ligação","Outra nota","note","user");
         store.link(a.getString("id"),b.getString("id"),"relaciona","Antes da atualização","user","accepted");
         store.getWritableDatabase().execSQL("DROP TABLE notification_threads");store.getWritableDatabase().execSQL("DROP TABLE notification_seen");store.getWritableDatabase().setVersion(1);store.close();
-        assertEquals("Conteúdo anterior",store.node(a.getString("id")).getString("body"));assertEquals(2,store.getReadableDatabase().getVersion());assertEquals(1,store.edges().length());
+        assertEquals("Conteúdo anterior",store.node(a.getString("id")).getString("body"));assertEquals(3,store.getReadableDatabase().getVersion());assertEquals(1,store.edges().length());
         assertEquals(1,store.captureNotifications(List.of(message("Nova","new","Depois da atualização",now-100)),since,now));assertEquals(3,store.nodes(null).length());
     }
 }
