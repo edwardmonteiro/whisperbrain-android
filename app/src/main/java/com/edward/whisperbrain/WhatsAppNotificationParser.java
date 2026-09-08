@@ -19,11 +19,12 @@ public final class WhatsAppNotificationParser {
     }
     public static List<WhatsAppNotice> parse(StatusBarNotification sbn,long since,long now,boolean business){
         List<WhatsAppNotice> out=new ArrayList<>();if(sbn==null||!WhatsAppNotice.allowed(sbn.getPackageName(),business))return out;
+        if(!android.os.Process.myUserHandle().equals(sbn.getUser()))return out;
         Notification n=sbn.getNotification();
         if(n==null||(n.flags&(Notification.FLAG_GROUP_SUMMARY|Notification.FLAG_ONGOING_EVENT))!=0||!WhatsAppNotice.newEnough(sbn.getPostTime(),since,now))return out;
         if(Notification.CATEGORY_CALL.equals(n.category)||Notification.CATEGORY_TRANSPORT.equals(n.category)||Notification.CATEGORY_SERVICE.equals(n.category))return out;
         Bundle extras=n.extras;if(extras==null)return out;
-        String thread=sbn.getUser().getIdentifier()+":"+(n.getShortcutId()!=null?"shortcut:"+n.getShortcutId():"notification:"+sbn.getKey());
+        String thread=n.getShortcutId()!=null?"shortcut:"+n.getShortcutId():"notification:"+sbn.getKey();
         NotificationCompat.MessagingStyle style=NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n);
         if(style!=null){
             String chat=text(style.getConversationTitle(),100);if(chat.isEmpty())chat=text(extras.getCharSequence(Notification.EXTRA_TITLE),100);

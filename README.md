@@ -38,6 +38,7 @@ Modelo de texto editável, inicialmente `gpt-4.1-mini`.
 
 A captura do WhatsApp pessoal vem selecionada. WhatsApp Business é opcional e começa desligado.
 O Android concede acesso amplo às notificações; o código descarta imediatamente outros pacotes.
+Somente o perfil Android onde o WhisperBrain está instalado é considerado.
 Não há leitura do banco privado, busca de notificações antigas, respostas automáticas ou chamadas à IA durante a captura.
 As APIs de IA continuam sendo acionadas pelo usuário.
 
