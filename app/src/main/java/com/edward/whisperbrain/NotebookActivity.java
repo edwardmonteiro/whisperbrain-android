@@ -2,6 +2,8 @@ package com.edward.whisperbrain;
 
 import android.Manifest;
 import android.app.*;
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.media.MediaRecorder;
@@ -15,7 +17,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 /** The notebook works without a key, internet or microphone permission. */
-public final class NotebookActivity extends Activity {
+public final class NotebookActivity extends ComponentActivity {
+    private final OnBackPressedCallback back=new OnBackPressedCallback(false){@Override public void handleOnBackPressed(){act(()->{if(mode.equals("graph")&&!current.isEmpty())showSession(current);else showHome();});}};
     private NotebookUi ui;
     private NotebookStore store;
     private Vault vault;
@@ -40,13 +43,13 @@ public final class NotebookActivity extends Activity {
     private String value(String key,String fallback){try{return vault.get(key,fallback);}catch(Exception e){return fallback;}}
     private String date(long millis){return new SimpleDateFormat("dd MMM yyyy · HH:mm",new Locale("pt","BR")).format(new Date(millis));}
     private void message(String text){Toast.makeText(this,text,Toast.LENGTH_LONG).show();}
-    @Override public void onCreate(Bundle state){super.onCreate(state);getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);getWindow().setDecorFitsSystemWindows(false);ui=new NotebookUi(this);store=NotebookStore.get(this);vault=new Vault(this);
+    @Override public void onCreate(Bundle state){super.onCreate(state);getOnBackPressedDispatcher().addCallback(this,back);getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);getWindow().setDecorFitsSystemWindows(false);ui=new NotebookUi(this);store=NotebookStore.get(this);vault=new Vault(this);
         if(state!=null){current=state.getString("session","");mode=state.getString("mode","home");}
         else current=getIntent().getStringExtra("session")==null?"":getIntent().getStringExtra("session");
         act(()->{if(mode.equals("graph"))showGraph(current);else if(!current.isEmpty())showSession(current);else showHome();});
     }
     @Override public void onSaveInstanceState(Bundle state){persistDraft();state.putString("session",current);state.putString("mode",mode);super.onSaveInstanceState(state);}
-    @Override public void onResume(){super.onResume();visible=true;NotebookAi.observer=this::refresh;refresh();main.post(refreshLive);}
+    @Override public void onResume(){super.onResume();visible=true;NotebookAi.observer=()->act(()->{if(mode.equals("graph"))refreshGraph();else refresh();});refresh();main.post(refreshLive);}
     @Override public void onPause(){visible=false;persistDraft();main.removeCallbacks(saveDraft);main.removeCallbacks(refreshLive);NotebookAi.observer=null;
         if(recorder!=null)finishRecording();if(voice!=null){voice.shutdown();voice=null;}super.onPause();}
     private final Runnable refreshLive=new Runnable(){public void run(){if(!visible)return;if((SessionState.active||SessionState.savingAudio)&&mode.equals("session"))refresh();main.postDelayed(this,2500);}};
@@ -54,7 +57,7 @@ public final class NotebookActivity extends Activity {
     private void clearViews(){if(graphSearch!=null)main.removeCallbacks(graphSearch);editor=null;search=null;timeline=null;sessionList=null;graphList=null;aiStatus=null;sessionMeta=null;aiButton=null;across=null;recordButton=null;recStatus=null;}
     private LinearLayout shell(String title,String caption){clearViews();LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.2",14,NotebookUi.TEAL));root.addView(ui.title(title,30));root.addView(ui.text(caption,15,NotebookUi.MUTED));return root;}
     private void showHome()throws Exception {
-        if(recorder!=null)finishRecording();persistDraft();current="";mode="home";focus="";
+        if(recorder!=null)finishRecording();persistDraft();current="";mode="home";back.setEnabled(false);focus="";
         LinearLayout root=shell("Seu segundo cérebro", "Conversas viram notas. Notas criam conexões.");
         if(SessionState.active)ui.button(root,"Voltar à sessão com escuta ativa",false,()->act(()->showSession(SessionState.sessionId)));
         LinearLayout hero=ui.card(root);hero.addView(ui.title("Um espaço para cada conversa",20));hero.addView(ui.text("Escreva offline, grave um áudio ou acompanhe uma conversa ao vivo.",16,NotebookUi.MUTED));
@@ -84,7 +87,7 @@ public final class NotebookActivity extends Activity {
         AlertDialog d=new AlertDialog.Builder(this).setTitle("Nova sessão").setView(body).setNegativeButton("Cancelar",null).setPositiveButton("Criar",null).create();
         d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->act(()->{JSONObject s=store.createSession(event.getText().toString());d.dismiss();showSession(s.getString("id"));})));d.show();}
     private void showSession(String id)throws Exception {
-        if(recorder!=null)finishRecording();persistDraft();JSONObject s=store.session(id);if(!current.equals(id))focus="";current=id;mode="session";
+        if(recorder!=null)finishRecording();persistDraft();JSONObject s=store.session(id);if(!current.equals(id))focus="";current=id;mode="session";back.setEnabled(true);
         LinearLayout root=shell("# "+s.getString("event"),date(s.getLong("created")));
         ui.button(root,"← Todas as sessões",false,()->act(this::showHome));
         sessionMeta=ui.text("",14,NotebookUi.TEAL);root.addView(sessionMeta);
@@ -136,16 +139,16 @@ public final class NotebookActivity extends Activity {
         JSONArray edges=store.edges();boolean links=false;
         for(int i=0;i<edges.length();i++){JSONObject e=edges.getJSONObject(i);if(e.getString("from").equals(id)||e.getString("to").equals(id)){if(!links){body.addView(ui.title("Sinapses",20));links=true;}edgeCard(body,e);}}
         ui.button(body,"Abrir a conversa de origem",false,()->act(()->showSession(n.getString("session"))));
-        ui.button(body,"Excluir neurônio",false,()->new AlertDialog.Builder(this).setTitle("Excluir neurônio?").setMessage("O áudio anexado e suas ligações também serão removidos.").setNegativeButton("Cancelar",null).setPositiveButton("Excluir",(d,w)->act(()->{guardIdle();store.deleteNode(id);refresh();})).show());
+        ui.button(body,"Excluir neurônio",false,()->new AlertDialog.Builder(this).setTitle("Excluir neurônio?").setMessage("O áudio anexado e suas ligações também serão removidos.").setNegativeButton("Cancelar",null).setPositiveButton("Excluir",(d,w)->act(()->{guardIdle();store.deleteNode(id);refreshGraph();})).show());
         ScrollView scroll=new ScrollView(this);scroll.addView(body);new AlertDialog.Builder(this).setTitle(n.getString("title")).setView(scroll).setPositiveButton("Fechar",null).show();
     }
     private void editNode(JSONObject n){LinearLayout body=ui.col();body.setPadding(ui.dp(20),0,ui.dp(20),ui.dp(20));EditText title=ui.input(body,"Título",160,false),text=ui.input(body,"Anotação",20000,true);title.setText(n.optString("title"));text.setText(n.optString("body"));
-        AlertDialog d=new AlertDialog.Builder(this).setTitle("Editar neurônio").setView(body).setNegativeButton("Cancelar",null).setPositiveButton("Salvar",null).create();d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->act(()->{store.updateNote(n.getString("id"),title.getText().toString(),text.getText().toString());d.dismiss();refresh();})));d.show();}
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("Editar neurônio").setView(body).setNegativeButton("Cancelar",null).setPositiveButton("Salvar",null).create();d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->act(()->{store.updateNote(n.getString("id"),title.getText().toString(),text.getText().toString());d.dismiss();refreshGraph();})));d.show();}
     private void chooseLink(String from)throws Exception {
         JSONArray nodes=store.nodes(null);ArrayList<String> ids=new ArrayList<>(),names=new ArrayList<>();for(int i=0;i<nodes.length();i++){JSONObject n=nodes.getJSONObject(i);if(n.getString("id").equals(from))continue;ids.add(n.getString("id"));names.add(n.getString("title")+" · "+store.session(n.getString("session")).getString("event"));}
         if(ids.isEmpty())throw new IllegalArgumentException("Crie outro neurônio para fazer uma ligação.");
         new AlertDialog.Builder(this).setTitle("Conectar com qual neurônio?").setItems(names.toArray(new String[0]),(d,index)->{LinearLayout body=ui.col();body.setPadding(ui.dp(20),0,ui.dp(20),ui.dp(20));EditText relation=ui.input(body,"Relação · ex.: complementa",80,false);relation.setText("relaciona");
-            new AlertDialog.Builder(this).setTitle("Nova sinapse").setView(body).setNegativeButton("Cancelar",null).setPositiveButton("Conectar",(dd,w)->act(()->{store.link(from,ids.get(index),relation.getText().toString(),"Ligação criada por você.","user","accepted");message("Sinapse criada.");refresh();})).show();}).setNegativeButton("Cancelar",null).show();
+            new AlertDialog.Builder(this).setTitle("Nova sinapse").setView(body).setNegativeButton("Cancelar",null).setPositiveButton("Conectar",(dd,w)->act(()->{store.link(from,ids.get(index),relation.getText().toString(),"Ligação criada por você.","user","accepted");message("Sinapse criada.");refreshGraph();})).show();}).setNegativeButton("Cancelar",null).show();
     }
     private void edgeCard(LinearLayout parent,JSONObject e)throws Exception {
         String label=e.getString("relation")+" · "+(e.getString("state").equals("proposed")?"proposta IA":"aceita");
@@ -161,7 +164,7 @@ public final class NotebookActivity extends Activity {
     }
     private void refreshGraph()throws Exception {if(mode.equals("graph"))showGraph(current);else refresh();}
     private void showGraph(String session)throws Exception {
-        if(recorder!=null)finishRecording();persistDraft();current=session;mode="graph";LinearLayout root=shell(session.isEmpty()?"Seu grafo completo":"Grafo da conversa",session.isEmpty()?"Conexões entre os seus eventos.":"# "+store.session(session).getString("event"));
+        if(recorder!=null)finishRecording();persistDraft();current=session;mode="graph";back.setEnabled(true);LinearLayout root=shell(session.isEmpty()?"Seu grafo completo":"Grafo da conversa",session.isEmpty()?"Conexões entre os seus eventos.":"# "+store.session(session).getString("event"));
         ui.button(root,"← Voltar",false,()->act(()->{if(current.isEmpty())showHome();else showSession(current);}));
         root.addView(ui.text("Verde: suas notas e ligações aceitas. Âmbar: IA; linhas tracejadas são propostas.",14,NotebookUi.MUTED));
         search=ui.input(root,"Filtrar por nota ou evento",120,false);LinearLayout canvas=ui.col();root.addView(canvas);graphList=ui.col();root.addView(graphList);
@@ -201,5 +204,4 @@ public final class NotebookActivity extends Activity {
     private void importNotebook(){act(()->{guardIdle();startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip"),92);});}
     @Override public void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;if(request!=91&&request!=92)return;backupBusy=true;message(request==91?"Exportando caderno…":"Importando caderno…");
         android.net.Uri uri=data.getData();new Thread(()->{String outcome;try{if(request==91){try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){if(out==null)throw new IOException();NotebookBackup.exportAll(this,out);}outcome="Backup exportado com notas, grafo e áudios.";}else{try(InputStream in=getContentResolver().openInputStream(uri)){if(in==null)throw new IOException();int count=NotebookBackup.importAll(this,in);outcome=count+" sessões importadas. As existentes foram preservadas.";}}}catch(Exception e){outcome="Operação não concluída. Confira o arquivo e o espaço livre; um arquivo exportado incompleto não deve ser usado.";}String text=outcome;main.post(()->{backupBusy=false;message(text);if(!isFinishing())refresh();});},"notebook-backup").start();}
-    @Override public void onBackPressed(){if(!mode.equals("home")){act(()->{if(mode.equals("graph")&&!current.isEmpty())showSession(current);else showHome();});}else super.onBackPressed();}
 }
