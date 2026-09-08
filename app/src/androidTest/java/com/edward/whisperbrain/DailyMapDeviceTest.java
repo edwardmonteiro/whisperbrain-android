@@ -82,22 +82,30 @@ public class DailyMapDeviceTest {
     @Test public void emptyScreenExplainsCaptureAndDoesNotCallTheApi()throws Exception {
         try(ActivityScenario<DailyMapActivity> scenario=ActivityScenario.launch(new Intent(context,DailyMapActivity.class))){await(scenario,false);
             scenario.onActivity(a->{a.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);assertFalse(findButton(a.getWindow().getDecorView(),"Analisar meu dia · IA").isEnabled());assertNotNull(findButton(a.getWindow().getDecorView(),"Configurar captura do WhatsApp"));});
-            screenshot("day-empty.png");assertFalse(DailyMapAi.running);assertNull(store.dailyMap(day,zone));}
+            screenshot(scenario,"day-empty.png");assertFalse(DailyMapAi.running);assertNull(store.dailyMap(day,zone));}
     }
     @Test public void dailyMapAndEvidenceRenderAndSurviveActivityRecreation()throws Exception {
         createMap();try(ActivityScenario<DailyMapActivity> scenario=ActivityScenario.launch(new Intent(context,DailyMapActivity.class))){await(scenario,true);
-            scenario.onActivity(a->{a.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);assertEquals(3,findGraph(a.getWindow().getDecorView()).topicCount());});screenshot("day-map.png");
-            scenario.recreate();await(scenario,true);scenario.onActivity(a->{a.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);a.showTopic("T1");assertNotNull(a.detailDialog);a.detailDialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);});screenshot("day-theme.png");
+            scenario.onActivity(a->{a.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);assertEquals(3,findGraph(a.getWindow().getDecorView()).topicCount());});screenshot(scenario,"day-map.png");
+            scenario.recreate();await(scenario,true);scenario.onActivity(a->{a.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);a.showTopic("T1");assertNotNull(a.detailDialog);a.detailDialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);});screenshot(scenario,"day-theme.png");
             assertFalse(DailyMapAi.running);assertEquals(3,store.nodes(null).length());}
+        try(ActivityScenario<NotebookActivity> home=ActivityScenario.launch(new Intent(context,NotebookActivity.class))){screenshot(home,"day-home.png");}
     }
     private void await(ActivityScenario<DailyMapActivity> scenario,boolean graph)throws Exception {
         long until=System.currentTimeMillis()+7000;AtomicBoolean ready=new AtomicBoolean();while(System.currentTimeMillis()<until){scenario.onActivity(a->ready.set(graph?findGraph(a.getWindow().getDecorView())!=null:findButton(a.getWindow().getDecorView(),"Analisar meu dia · IA")!=null));if(ready.get())return;Thread.sleep(50);}fail("Day screen did not finish loading");
     }
     private static Button findButton(View v,String text){if(v instanceof Button&&text.contentEquals(((Button)v).getText()))return (Button)v;if(v instanceof ViewGroup){ViewGroup group=(ViewGroup)v;for(int i=0;i<group.getChildCount();i++){Button b=findButton(group.getChildAt(i),text);if(b!=null)return b;}}return null;}
     private static DailyMapView findGraph(View v){if(v instanceof DailyMapView)return (DailyMapView)v;if(v instanceof ViewGroup){ViewGroup group=(ViewGroup)v;for(int i=0;i<group.getChildCount();i++){DailyMapView graph=findGraph(group.getChildAt(i));if(graph!=null)return graph;}}return null;}
-    private void screenshot(String name)throws Exception {
+    private void screenshot(ActivityScenario<? extends android.app.Activity> scenario,String name)throws Exception {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();InstrumentationRegistry.getInstrumentation().getUiAutomation().waitForIdle(800,5000);
-        Bitmap bitmap=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();assertNotNull(bitmap);File dir=new File(context.getExternalFilesDir(null),"qa");assertTrue(dir.exists()||dir.mkdirs());
+        // Render the laid-out native window tree with synthetic data. FLAG_SECURE can remain
+        // latched on a compositor surface after clearing it, yielding an all-black OS screenshot.
+        // This test-only route leaves the production screenshot protection unchanged.
+        AtomicReference<Bitmap> rendered=new AtomicReference<>();scenario.onActivity(a->{View view=a.getWindow().getDecorView();
+            if(a instanceof DailyMapActivity){DailyMapActivity screen=(DailyMapActivity)a;if(screen.detailDialog!=null&&screen.detailDialog.isShowing())view=screen.detailDialog.getWindow().getDecorView();}
+            assertTrue(view.getWidth()>0&&view.getHeight()>0);Bitmap frame=Bitmap.createBitmap(view.getWidth(),view.getHeight(),Bitmap.Config.ARGB_8888);view.draw(new android.graphics.Canvas(frame));rendered.set(frame);});
+        Bitmap bitmap=rendered.get();assertNotNull(bitmap);Set<Integer> colors=new HashSet<>();for(int y=0;y<bitmap.getHeight();y+=17)for(int x=0;x<bitmap.getWidth();x+=17)colors.add(bitmap.getPixel(x,y));assertTrue("A blank image is not visual evidence",colors.size()>10);
+        File dir=new File(context.getExternalFilesDir(null),"qa");assertTrue(dir.exists()||dir.mkdirs());
         try(OutputStream out=new FileOutputStream(new File(dir,name))){assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,out));}bitmap.recycle();shell("mkdir -p /sdcard/Download/whisperbrain-qa");shell("cp "+new File(dir,name).getAbsolutePath()+" /sdcard/Download/whisperbrain-qa/"+name);
     }
     private void shell(String command)throws Exception {try(android.os.ParcelFileDescriptor p=InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(p)){byte[] bytes=new byte[1024];while(in.read(bytes)!=-1){}}}
