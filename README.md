@@ -1,6 +1,6 @@
 # WhisperBrain — caderno local com IA e áudio
 
-Versão **0.2.0-alpha**. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
+Versão **0.3.0-alpha**, em validação. Um caderno Android organizado por conversas, com notas, áudio, recomendações e grafo local.
 Desenvolvido e compilado na nuvem para uso de quem só tem um telefone.
 
 ## O modelo do caderno
@@ -27,6 +27,39 @@ A análise recebe a nota foco, até 14 notas recentes da mesma conversa e, se ha
 até 10 notas de outras sessões selecionadas por palavras em comum. Não há envio integral automático do caderno.
 As respostas usam a API Responses com `store:false` e formato JSON estruturado; isso não elimina a retenção de segurança do provedor.
 Modelo de texto editável, inicialmente `gpt-4.1-mini`.
+
+## WhatsApp pelas notificações
+
+1. Abra **WhatsApp · novas mensagens** e toque em **Ativar captura**.
+2. Na tela do Android, conceda acesso às notificações para **WhisperBrain · WhatsApp**.
+3. Volte ao app e confira **Capturando novas mensagens**.
+4. Receba uma nova mensagem com o WhatsApp fora da conversa aberta. Abra **Ver conversas salvas**.
+5. Use **Pausar captura** quando quiser; as notas já salvas continuam no caderno.
+
+A captura do WhatsApp pessoal vem selecionada. WhatsApp Business é opcional e começa desligado.
+O Android concede acesso amplo às notificações; o código descarta imediatamente outros pacotes.
+Não há leitura do banco privado, busca de notificações antigas, respostas automáticas ou chamadas à IA durante a captura.
+As APIs de IA continuam sendo acionadas pelo usuário.
+
+Cada conversa identificada pela notificação ganha uma sessão por dia, com data, remetente e origem `notification`.
+Uma ligação **capturada depois** registra a sequência de captura da mesma conversa, inclusive entre dias.
+Isso não afirma relação causal ou concordância. As ligações sugeridas pela IA continuam propostas para revisão.
+A mensagem original pode ser incompleta; a interface não a apresenta como uma anotação escrita pelo usuário.
+
+Mensagens anteriores à ativação e mensagens da pausa são descartadas pelos horários disponíveis na notificação.
+Repetições são deduplicadas em transação SQLite, inclusive depois de fechar o app ou excluir uma nota.
+A identidade de conversa usa o identificador do atalho Android quando disponível, com a chave da notificação como alternativa.
+Nomes de contatos iguais não são usados como chave de união. Identificadores e impressões de deduplicação usam HMAC com segredo local criptografado.
+O banco da versão 0.2 migra para a versão 2 do esquema preservando as notas, ligações e áudios existentes.
+
+Limites: conteúdo oculto, falta de notificações, desconexões ou notificações em formato diferente podem gerar lacunas.
+Respostas enviadas pelo usuário geralmente não são capturadas. Resumos agrupados, chamadas e entradas históricas são ignorados.
+Fotos e áudios não são baixados: somente o texto ou indicação de anexo disponibilizado na notificação pode virar nota.
+O fallback de notificação simples usa o horário da notificação, que pode ser menos preciso que o horário da mensagem.
+O diagnóstico registra estado e contadores, sem nomes, mensagens ou chaves.
+
+Se o Android bloquear **Configuração restrita**, veja [a orientação oficial do Android](https://support.google.com/android/answer/12623953?hl=pt-BR).
+O app oferece um atalho para suas informações e deixa a concessão da permissão sob controle do usuário.
 
 ## Áudio e escuta ao vivo
 
@@ -71,8 +104,9 @@ Guarde o backup em um lugar que você controla. Apagar o app também apaga seus 
 Abra [Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions), escolha a última execução bem-sucedida e baixe **WhisperBrain-Android-APK**.
 Extraia o ZIP e abra `app-debug.apk`. Uma nova alteração do código inicia outra compilação.
 Os APKs desse artefato usam assinatura de depuração do runner; a assinatura pode mudar entre execuções.
-A entrega direta `WhisperBrain-v0.2.0-alpha.apk` usa uma assinatura pessoal estável, identificada em `VALIDATION.json`.
+A entrega direta `WhisperBrain-v0.3.0-alpha.apk` usa uma assinatura pessoal estável, identificada em `VALIDATION.json`.
 A chave privada foi guardada separadamente; ela não faz parte deste repositório nem dos artefatos públicos.
+A atualização da entrega direta 0.2 para 0.3 usa a mesma assinatura e preserva o caderno; instale sobre a versão existente.
 A passagem dos APKs 0.1.0/0.1.1 para essa entrega exige desinstalar a versão antiga, apagando seus dados internos.
 Tenha sua chave da API e memórias importantes disponíveis antes disso. Veja [o guia de instalação](PHONE-SETUP.md).
 
@@ -80,6 +114,8 @@ Android 12+; compile/target 36; Java 17; Gradle 8.13; AGP 8.11.1; SQLite nativo;
 A chave da API é inserida somente no app. A compilação e os testes não precisam dela e não fazem chamadas pagas.
 
 ## Validação
+
+A validação da versão 0.3 será registrada após o build. Os resultados abaixo são da base 0.2.
 
 Veja `VALIDATION.json` para o commit e os resultados reais do build.
 O [build de origem do APK](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34180888916) passou:
@@ -95,6 +131,8 @@ Conectividade real com OpenAI, qualidade das respostas, Bluetooth, auricular, gr
 - [OpenAI Responses e saída estruturada](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime-conversations)
 - [Transcrição de arquivos](https://developers.openai.com/api/docs/guides/speech-to-text)
+- [Android NotificationListenerService](https://developer.android.com/reference/android/service/notification/NotificationListenerService)
+- [AndroidX MessagingStyle](https://developer.android.com/reference/androidx/core/app/NotificationCompat.MessagingStyle)
 - [Android Keystore](https://developer.android.com/privacy-and-security/keystore)
 - [Android microphone foreground services](https://developer.android.com/develop/background-work/services/fgs/service-types#microphone)
 - [Emulador Android no GitHub Actions](https://github.com/ReactiveCircus/android-emulator-runner)

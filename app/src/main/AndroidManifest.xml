@@ -26,6 +26,11 @@
             </intent-filter>
         </activity>
         <activity android:name=".MainActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".WhatsAppActivity" android:exported="false" />
+        <service android:name=".WhatsAppNotificationService" android:label="WhisperBrain · WhatsApp"
+            android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
         <service android:name=".BrainService" android:exported="false"
             android:stopWithTask="true"
             android:foregroundServiceType="microphone|mediaPlayback" />

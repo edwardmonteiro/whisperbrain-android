@@ -42,7 +42,7 @@ public final class GraphData {
             String a=n.optString("attachment");
             if(n.getString("kind").equals("audio") && (a.isEmpty() || !Set.of("pcm24k","m4a").contains(n.optString("format"))))throw new IllegalArgumentException("Formato do áudio inválido.");
             if(!a.isEmpty() && !a.matches("[a-f0-9-]{36}")) throw new IllegalArgumentException("Anexo inválido.");
-            if(!Set.of("user","ai","asr").contains(n.getString("origin"))) throw new IllegalArgumentException("Origem inválida.");
+            if(!Set.of("user","ai","asr","notification").contains(n.getString("origin"))) throw new IllegalArgumentException("Origem inválida.");
         }
         for(int i=0;i<edges.length();i++) {
             JSONObject e=edges.getJSONObject(i);

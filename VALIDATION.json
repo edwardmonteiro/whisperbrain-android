@@ -1,92 +1,107 @@
 {
   "date": "2026-09-08",
-  "version": "0.2.0-alpha",
-  "version_code": 3,
-  "status": "CLOUD_VALIDATED_PHONE_TESTING_REQUIRED",
-  "application_id": "com.edward.whisperbrain",
-  "source_commit": "cadc82e0f113eaf7249aeb96f2ce2dc00d924031",
-  "source_workflow_run": {
-    "id": 34180888916,
-    "url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34180888916",
-    "conclusion": "success"
-  },
-  "checks": {
-    "intervention_policy_assertions_passed": 29,
-    "jvm_tests_passed": 20,
-    "android_device_tests_passed": 6,
-    "test_failures": 0,
-    "lint_errors": 0,
-    "lint_warnings": 24
-  },
-  "device_tests": {
-    "android_api": 35,
-    "android_version": "15",
-    "emulator_profile": "pixel_2",
-    "architecture": "x86_64",
-    "scope": [
-      "offline text creation with microphone permission denied, no API key and no live service",
-      "encrypted local notes and edges persist after database reopen",
-      "deleting a session removes incident edges and preserves other sessions",
-      "portable backup roundtrip preserves audio bytes and cross-session links using new IDs",
-      "invalid backup leaves existing data intact",
-      "AI context selection, structured request and proposed link review",
-      "session and global graph node counts"
-    ]
-  },
-  "apk": {
-    "file_name": "WhisperBrain-v0.2.0-alpha.apk",
-    "size_bytes": 6961207,
-    "sha256": "1a33ae9a011ffa0ad22d0427ad54d9531d5922dcd6c0f798011c640d1ccc97c5",
-    "unsigned_payload_entries_match": true,
-    "payload_entry_count": 111,
-    "source_run_id": 34180888916,
-    "source_commit": "cadc82e0f113eaf7249aeb96f2ce2dc00d924031",
-    "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68"
-  },
-  "signing": {
-    "scheme": "v3",
-    "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68",
-    "private_key_stored_separately": true,
-    "private_key_in_repository": false,
-    "github_artifact_uses_runner_debug_key": true,
-    "direct_apk_uses_stable_personal_key": true,
-    "upgrade_from_0_1_requires_uninstall": true
-  },
+  "version": "0.3.0-alpha",
+  "version_code": 4,
+  "status": "CLOUD_VALIDATION_PENDING",
   "paid_api_requests_made": 0,
-  "not_verified": [
-    "real OpenAI Realtime, Responses or transcription requests",
-    "AI response quality or latency",
-    "physical microphone and local recorder on the user phone",
-    "Bluetooth and earpiece audio routing on the user phone",
-    "screen-locked operation on Samsung Android 16",
-    "installation of the re-signed APK on a physical device"
-  ],
-  "known_limits": [
-    "alpha build; personal sideloading",
-    "native offline Android TTS is quiet speech, not neural whisper-style audio",
-    "local audio notes: 3 minutes; continuous optional live recording: 45 minutes",
-    "saved audio transcription upload: 24 MB",
-    "graph displays up to 180 recent matching notes while all remain stored and searchable",
-    "backup import limit: 500 MB, 5000 sessions, 30000 notes, 100000 links",
-    "exported backup is readable and excludes API credentials",
-    "SQLite content encrypted; IDs, foreign-key relationships and timestamps remain metadata",
-    "final live transcript may be incomplete when a session stops abruptly"
-  ],
-  "visual_review": {
-    "source_commit": "c46e76cdc4e3c76cccd2a6d07f348a5abd392de9",
-    "workflow_run_id": 34181343265,
-    "workflow_url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34181343265",
-    "workflow_conclusion": "success",
-    "reviewed_screens": [
-      "home",
-      "session editor",
-      "conversation graph",
-      "global graph with cross-session edge"
+  "base_version_validation": {
+    "date": "2026-09-08",
+    "version": "0.2.0-alpha",
+    "version_code": 3,
+    "status": "CLOUD_VALIDATED_PHONE_TESTING_REQUIRED",
+    "application_id": "com.edward.whisperbrain",
+    "source_commit": "cadc82e0f113eaf7249aeb96f2ce2dc00d924031",
+    "source_workflow_run": {
+      "id": 34180888916,
+      "url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34180888916",
+      "conclusion": "success"
+    },
+    "checks": {
+      "intervention_policy_assertions_passed": 29,
+      "jvm_tests_passed": 20,
+      "android_device_tests_passed": 6,
+      "test_failures": 0,
+      "lint_errors": 0,
+      "lint_warnings": 24
+    },
+    "device_tests": {
+      "android_api": 35,
+      "android_version": "15",
+      "emulator_profile": "pixel_2",
+      "architecture": "x86_64",
+      "scope": [
+        "offline text creation with microphone permission denied, no API key and no live service",
+        "encrypted local notes and edges persist after database reopen",
+        "deleting a session removes incident edges and preserves other sessions",
+        "portable backup roundtrip preserves audio bytes and cross-session links using new IDs",
+        "invalid backup leaves existing data intact",
+        "AI context selection, structured request and proposed link review",
+        "session and global graph node counts"
+      ]
+    },
+    "apk": {
+      "file_name": "WhisperBrain-v0.2.0-alpha.apk",
+      "size_bytes": 6961207,
+      "sha256": "1a33ae9a011ffa0ad22d0427ad54d9531d5922dcd6c0f798011c640d1ccc97c5",
+      "unsigned_payload_entries_match": true,
+      "payload_entry_count": 111,
+      "source_run_id": 34180888916,
+      "source_commit": "cadc82e0f113eaf7249aeb96f2ce2dc00d924031",
+      "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68"
+    },
+    "signing": {
+      "scheme": "v3",
+      "certificate_sha256": "235391bb7dcc77a9a96b90bd859c2cf49b3f7d87c73ed299cbc8b19a0c312c68",
+      "private_key_stored_separately": true,
+      "private_key_in_repository": false,
+      "github_artifact_uses_runner_debug_key": true,
+      "direct_apk_uses_stable_personal_key": true,
+      "upgrade_from_0_1_requires_uninstall": true
+    },
+    "paid_api_requests_made": 0,
+    "not_verified": [
+      "real OpenAI Realtime, Responses or transcription requests",
+      "AI response quality or latency",
+      "physical microphone and local recorder on the user phone",
+      "Bluetooth and earpiece audio routing on the user phone",
+      "screen-locked operation on Samsung Android 16",
+      "installation of the re-signed APK on a physical device"
     ],
-    "artifact_sha256": "093757b5b97c2a7c934ad0abede3b74bb72d56565897641e8ad975ba757d24a8",
-    "production_source_unchanged_from_apk_build": true,
-    "only_changed_file_since_apk_build": "app/src/androidTest/java/com/edward/whisperbrain/NotebookDeviceTest.java",
-    "capture_fix": "Wait for window composition after UI changes before capturing the screen",
-    "scope": "Visual inspection of the four captured viewport states; graph labels are abbreviated and full notes open on tap or from the list."
-  }
+    "known_limits": [
+      "alpha build; personal sideloading",
+      "native offline Android TTS is quiet speech, not neural whisper-style audio",
+      "local audio notes: 3 minutes; continuous optional live recording: 45 minutes",
+      "saved audio transcription upload: 24 MB",
+      "graph displays up to 180 recent matching notes while all remain stored and searchable",
+      "backup import limit: 500 MB, 5000 sessions, 30000 notes, 100000 links",
+      "exported backup is readable and excludes API credentials",
+      "SQLite content encrypted; IDs, foreign-key relationships and timestamps remain metadata",
+      "final live transcript may be incomplete when a session stops abruptly"
+    ],
+    "visual_review": {
+      "source_commit": "c46e76cdc4e3c76cccd2a6d07f348a5abd392de9",
+      "workflow_run_id": 34181343265,
+      "workflow_url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34181343265",
+      "workflow_conclusion": "success",
+      "reviewed_screens": [
+        "home",
+        "session editor",
+        "conversation graph",
+        "global graph with cross-session edge"
+      ],
+      "artifact_sha256": "093757b5b97c2a7c934ad0abede3b74bb72d56565897641e8ad975ba757d24a8",
+      "production_source_unchanged_from_apk_build": true,
+      "only_changed_file_since_apk_build": "app/src/androidTest/java/com/edward/whisperbrain/NotebookDeviceTest.java",
+      "capture_fix": "Wait for window composition after UI changes before capturing the screen",
+      "scope": "Visual inspection of the four captured viewport states; graph labels are abbreviated and full notes open on tap or from the list."
+    }
+  },
+  "scope": [
+    "WhatsApp notification opt-in and pause",
+    "new message cutoff and persistent deduplication",
+    "local per-conversation per-day sessions",
+    "encrypted external-message provenance",
+    "version 1 database migration preserving the existing notebook",
+    "system listener permission and control tests"
+  ]
 }

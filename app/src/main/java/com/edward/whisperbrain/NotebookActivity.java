@@ -25,7 +25,7 @@ public final class NotebookActivity extends ComponentActivity {
     private String current="",mode="home",focus="";
     private EditText editor,search;
     private LinearLayout timeline,sessionList,graphList;
-    private TextView aiStatus,sessionMeta,recStatus;
+    private TextView aiStatus,sessionMeta,recStatus,whatsappStatus;
     private Switch across;
     private Button aiButton,recordButton;
     private final Handler main=new Handler(Looper.getMainLooper());
@@ -37,6 +37,7 @@ public final class NotebookActivity extends ComponentActivity {
     private String pendingSpeech="";
     private boolean backupBusy,visible;
     private Runnable graphSearch;
+    private long captureRevision=-1;
     private final Runnable saveDraft=()->persistDraft();
     private interface Task{void run()throws Exception;}
     private void act(Task t){try{t.run();}catch(Exception e){message(e.getMessage()==null?"Não foi possível concluir. Seus registros continuam no telefone.":e.getMessage());}}
@@ -47,21 +48,24 @@ public final class NotebookActivity extends ComponentActivity {
         if(state!=null){current=state.getString("session","");mode=state.getString("mode","home");}
         else current=getIntent().getStringExtra("session")==null?"":getIntent().getStringExtra("session");
         act(()->{if(mode.equals("graph"))showGraph(current);else if(!current.isEmpty())showSession(current);else showHome();});
+        if(state==null&&mode.equals("home")&&search!=null&&getIntent().hasExtra("query"))search.setText(getIntent().getStringExtra("query"));
     }
     @Override public void onSaveInstanceState(Bundle state){persistDraft();state.putString("session",current);state.putString("mode",mode);super.onSaveInstanceState(state);}
     @Override public void onResume(){super.onResume();visible=true;NotebookAi.observer=()->act(()->{if(mode.equals("graph"))refreshGraph();else refresh();});refresh();main.post(refreshLive);}
     @Override public void onPause(){visible=false;persistDraft();main.removeCallbacks(saveDraft);main.removeCallbacks(refreshLive);NotebookAi.observer=null;
         if(recorder!=null)finishRecording();if(voice!=null){voice.shutdown();voice=null;}super.onPause();}
-    private final Runnable refreshLive=new Runnable(){public void run(){if(!visible)return;if((SessionState.active||SessionState.savingAudio)&&mode.equals("session"))refresh();main.postDelayed(this,2500);}};
+    private final Runnable refreshLive=new Runnable(){public void run(){if(!visible)return;long revision=WhatsAppCapture.revision();if(captureRevision!=revision||(SessionState.active||SessionState.savingAudio)&&mode.equals("session")){captureRevision=revision;refresh();}main.postDelayed(this,2500);}};
     private void persistDraft(){if(editor!=null&&!current.isEmpty())try{vault.put("draft:"+current,editor.getText().toString());}catch(Exception e){message("Rascunho ainda não foi salvo. Use Salvar neurônio.");}}
-    private void clearViews(){if(graphSearch!=null)main.removeCallbacks(graphSearch);editor=null;search=null;timeline=null;sessionList=null;graphList=null;aiStatus=null;sessionMeta=null;aiButton=null;across=null;recordButton=null;recStatus=null;}
-    private LinearLayout shell(String title,String caption){clearViews();LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.2",14,NotebookUi.TEAL));root.addView(ui.title(title,30));root.addView(ui.text(caption,15,NotebookUi.MUTED));return root;}
+    private void clearViews(){if(graphSearch!=null)main.removeCallbacks(graphSearch);editor=null;search=null;timeline=null;sessionList=null;graphList=null;aiStatus=null;sessionMeta=null;aiButton=null;across=null;recordButton=null;recStatus=null;whatsappStatus=null;}
+    private LinearLayout shell(String title,String caption){clearViews();LinearLayout root=ui.root();root.addView(ui.text("WHISPERBRAIN  /  0.3",14,NotebookUi.TEAL));root.addView(ui.title(title,30));root.addView(ui.text(caption,15,NotebookUi.MUTED));return root;}
     private void showHome()throws Exception {
         if(recorder!=null)finishRecording();persistDraft();current="";mode="home";back.setEnabled(false);focus="";
         LinearLayout root=shell("Seu segundo cérebro", "Conversas viram notas. Notas criam conexões.");
         if(SessionState.active)ui.button(root,"Voltar à sessão com escuta ativa",false,()->act(()->showSession(SessionState.sessionId)));
         LinearLayout hero=ui.card(root);hero.addView(ui.title("Um espaço para cada conversa",20));hero.addView(ui.text("Escreva offline, grave um áudio ou acompanhe uma conversa ao vivo.",16,NotebookUi.MUTED));
         ui.button(hero,"+ Nova sessão",true,this::newSession);
+        ui.button(root,"WhatsApp · novas mensagens",false,()->startActivity(new Intent(this,WhatsAppActivity.class)));
+        whatsappStatus=ui.text(WhatsAppCapture.status(this),14,NotebookUi.TEAL);root.addView(whatsappStatus);
         ui.button(root,"Grafo de todas as conversas",false,()->act(()->showGraph("")));
         search=ui.input(root,"Buscar evento, data ou conteúdo",120,false);sessionList=ui.col();root.addView(sessionList);ui.watch(search,()->act(this::listSessions));
         ui.button(root,"Configurar IA e voz",false,()->startActivity(new Intent(this,MainActivity.class).putExtra("settings",true)));
@@ -114,13 +118,14 @@ public final class NotebookActivity extends ComponentActivity {
         JSONObject n=store.addNode(current,title,text,"note","user");focus=n.getString("id");editor.setText("");vault.put("draft:"+current,"");refresh();return focus;
     }
     private void refresh(){if(isFinishing()||ui==null)return;act(()->{
+        if(whatsappStatus!=null)whatsappStatus.setText(WhatsAppCapture.status(this));
         if(aiStatus!=null)aiStatus.setText(NotebookAi.status);if(aiButton!=null){aiButton.setEnabled(!NotebookAi.running);aiButton.setText(NotebookAi.running?"Gerando sinapses…":"Gerar sinapses com IA");}
         if(mode.equals("session")&&timeline!=null){JSONArray nodes=store.nodes(current);sessionMeta.setText(nodes.length()+" neurônios · salvos no telefone"+(SessionState.active&&current.equals(SessionState.sessionId)?" · escuta ativa":""));timeline.removeAllViews();
             for(int i=nodes.length()-1;i>=0;i--)noteCard(timeline,nodes.getJSONObject(i));
             if(nodes.length()==0)timeline.addView(ui.text("Suas notas, transcrições e recomendações aparecerão aqui.",16,NotebookUi.MUTED));}
         else if(mode.equals("home")&&sessionList!=null)listSessions();
     });}
-    private String kind(JSONObject n){switch(n.optString("kind")){case "audio":return "ÁUDIO LOCAL";case "transcript":return "TRANSCRIÇÃO · IA";case "summary":return "RESUMO · IA";case "recommendation":return "RECOMENDAÇÃO · IA";default:return "NOTA · VOCÊ";}}
+    private String kind(JSONObject n){if(n.optString("origin").equals("notification"))return "WHATSAPP · NOTIFICAÇÃO";switch(n.optString("kind")){case "audio":return "ÁUDIO LOCAL";case "transcript":return "TRANSCRIÇÃO · IA";case "summary":return "RESUMO · IA";case "recommendation":return "RECOMENDAÇÃO · IA";default:return "NOTA · VOCÊ";}}
     private void noteCard(LinearLayout parent,JSONObject n)throws Exception {
         String id=n.getString("id");LinearLayout card=ui.card(parent);card.addView(ui.text(kind(n)+" · "+date(n.getLong("created")),12,n.optString("origin").equals("ai")?NotebookUi.AMBER:NotebookUi.TEAL));
         card.addView(ui.title(n.getString("title"),19));TextView preview=ui.text(n.getString("body"),16,NotebookUi.INK);preview.setMaxLines(4);card.addView(preview);
@@ -166,7 +171,7 @@ public final class NotebookActivity extends ComponentActivity {
     private void showGraph(String session)throws Exception {
         if(recorder!=null)finishRecording();persistDraft();current=session;mode="graph";back.setEnabled(true);LinearLayout root=shell(session.isEmpty()?"Seu grafo completo":"Grafo da conversa",session.isEmpty()?"Conexões entre os seus eventos.":"# "+store.session(session).getString("event"));
         ui.button(root,"← Voltar",false,()->act(()->{if(current.isEmpty())showHome();else showSession(current);}));
-        root.addView(ui.text("Verde: suas notas e ligações aceitas. Âmbar: IA; linhas tracejadas são propostas.",14,NotebookUi.MUTED));
+        root.addView(ui.text("Verde: notas, mensagens e ligações aceitas. Âmbar: IA; linhas tracejadas são propostas.",14,NotebookUi.MUTED));
         search=ui.input(root,"Filtrar por nota ou evento",120,false);LinearLayout canvas=ui.col();root.addView(canvas);graphList=ui.col();root.addView(graphList);
         Runnable update=()->act(()->{
             JSONArray all=store.nodes(session.isEmpty()?null:session),selected=new JSONArray();String q=search.getText().toString().trim().toLowerCase(Locale.ROOT);

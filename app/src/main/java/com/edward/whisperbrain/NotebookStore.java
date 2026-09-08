@@ -14,7 +14,8 @@ public final class NotebookStore extends SQLiteOpenHelper {
     public static synchronized NotebookStore get(Context context) {
         if(instance==null) instance=new NotebookStore(context.getApplicationContext()); return instance;
     }
-    private NotebookStore(Context c) {super(c,"notebook.db",null,1);context=c;vault=new Vault(c);}
+    private byte[] notificationSecret;
+    private NotebookStore(Context c) {super(c,"notebook.db",null,2);context=c;vault=new Vault(c);}
     @Override public void onConfigure(SQLiteDatabase db) {db.setForeignKeyConstraintsEnabled(true);}
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id TEXT PRIMARY KEY, created INTEGER NOT NULL, payload TEXT NOT NULL)");
@@ -22,8 +23,14 @@ public final class NotebookStore extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX nodes_session ON nodes(session,created)");
         db.execSQL("CREATE TABLE edges (id TEXT PRIMARY KEY, source TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE, target TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE, created INTEGER NOT NULL, payload TEXT NOT NULL)");
         db.execSQL("CREATE INDEX edge_source ON edges(source)"); db.execSQL("CREATE INDEX edge_target ON edges(target)");
+        notificationTables(db);
     }
-    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {throw new IllegalStateException("Migração não implementada para essa versão.");}
+    private void notificationTables(SQLiteDatabase db){
+        db.execSQL("CREATE TABLE notification_threads (thread_key TEXT PRIMARY KEY, day TEXT NOT NULL, session TEXT REFERENCES sessions(id) ON DELETE SET NULL, last_node TEXT REFERENCES nodes(id) ON DELETE SET NULL)");
+        db.execSQL("CREATE TABLE notification_seen (fingerprint TEXT PRIMARY KEY, source_time INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX notification_seen_time ON notification_seen(source_time)");
+    }
+    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {if(oldVersion<2)notificationTables(db);}
     private JSONObject decode(String table, Cursor c) throws Exception {return new JSONObject(vault.open(table+":"+c.getString(0),c.getString(1)));}
     private JSONArray rows(String table,String where,String[] args,String order) throws Exception {
         JSONArray out=new JSONArray();
@@ -87,6 +94,40 @@ public final class NotebookStore extends SQLiteOpenHelper {
         } finally {db.endTransaction();}
     }
     public synchronized JSONObject snapshot() throws Exception {return new JSONObject().put("version",GraphData.VERSION).put("sessions",sessions()).put("nodes",nodes(null)).put("edges",edges());}
+    private byte[] notificationSecret()throws Exception{
+        if(notificationSecret==null){String encoded=vault.get("notification_hash_secret","");
+            if(encoded.isEmpty()){byte[] key=new byte[32];new java.security.SecureRandom().nextBytes(key);encoded=android.util.Base64.encodeToString(key,android.util.Base64.NO_WRAP);vault.put("notification_hash_secret",encoded);}
+            notificationSecret=android.util.Base64.decode(encoded,android.util.Base64.NO_WRAP);
+        }return notificationSecret;
+    }
+    /** Atomic deduplication and conversation assignment; deleting a note does not replay it. */
+    public synchronized int captureNotifications(List<WhatsAppNotice> messages,long since,long receivedAt)throws Exception{
+        if(messages.isEmpty())return 0;byte[] secret=notificationSecret();SQLiteDatabase db=getWritableDatabase();db.beginTransaction();int saved=0;
+        try{
+            // Entries older than the current admission cutoff can never be imported again.
+            db.delete("notification_seen","source_time<=?",new String[]{Long.toString(since)});
+            for(WhatsAppNotice m:messages){
+                if(!WhatsAppNotice.allowed(m.source,true)||!WhatsAppNotice.newEnough(m.time,since,receivedAt))continue;
+                ContentValues seen=new ContentValues();seen.put("fingerprint",m.fingerprint(secret));seen.put("source_time",m.time);
+                if(db.insertWithOnConflict("notification_seen",null,seen,SQLiteDatabase.CONFLICT_IGNORE)==-1)continue;
+                String thread=m.threadHash(secret),day=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(new Date(m.time));
+                String sessionId="",previous="",priorDay="";
+                try(Cursor c=db.query("notification_threads",new String[]{"session","last_node","day"},"thread_key=?",new String[]{thread},null,null,null)){
+                    if(c.moveToFirst()){sessionId=c.isNull(0)?"":c.getString(0);previous=c.isNull(1)?"":c.getString(1);priorDay=c.getString(2);}
+                }
+                if(sessionId.isEmpty()||!day.equals(priorDay)||session(sessionId).optLong("ended")!=0){
+                    JSONObject s=createSession((m.source.equals("com.whatsapp.w4b")?"WhatsApp Business · ":"WhatsApp · ")+m.chat);
+                    sessionId=s.getString("id");s.put("created",m.time).put("source","whatsapp_notification").put("source_chat",m.chat).put("source_app",m.source);write("sessions",s,true);
+                }
+                String body="[WhatsApp · notificação]\nRemetente: "+m.sender+"\nConversa: "+m.chat+"\n\n"+m.text;
+                JSONObject n=addNode(sessionId,GraphData.text(m.sender+" · "+m.text.replace('\n',' '),120),body,"note","notification");
+                n.put("created",m.time).put("captured_at",receivedAt).put("sender",m.sender).put("source_chat",m.chat).put("source_app",m.source).put("notification_only",true).put("timestamp_source",m.timeSource).put("group",m.group);write("nodes",n,true);
+                if(!previous.isEmpty())link(previous,n.getString("id"),"capturada depois","Mesma conversa do WhatsApp, em ordem de captura. A ligação não afirma causa ou concordância.","notification","accepted");
+                ContentValues mapping=new ContentValues();mapping.put("thread_key",thread);mapping.put("day",day);mapping.put("session",sessionId);mapping.put("last_node",n.getString("id"));db.insertWithOnConflict("notification_threads",null,mapping,SQLiteDatabase.CONFLICT_REPLACE);saved++;
+            }
+            db.setTransactionSuccessful();return saved;
+        }finally{db.endTransaction();}
+    }
     /** Import uses new IDs, preserving existing sessions and rewiring every imported edge. */
     public synchronized void importSnapshot(JSONObject backup,Map<String,String> attachments) throws Exception {
         GraphData.validate(backup);SQLiteDatabase db=getWritableDatabase();db.beginTransaction();

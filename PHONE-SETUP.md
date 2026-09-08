@@ -1,14 +1,35 @@
-# WhisperBrain 0.2 — primeiro uso no telefone
+# WhisperBrain 0.3 — primeiro uso no telefone
 
-## Instalar a entrega direta 0.2.0
+## Instalar a entrega direta 0.3.0
 
-Baixe `WhisperBrain-v0.2.0-alpha.apk` pela conversa e abra o arquivo no telefone.
+Baixe `WhisperBrain-v0.3.0-alpha.apk` pela conversa e abra o arquivo no telefone.
 Se o Android solicitar, permita a instalação para o aplicativo que abriu o APK.
+
+**Se você instalou a entrega direta 0.2 desta conversa, instale a 0.3 por cima. Não desinstale.**
+A assinatura pessoal é a mesma e o banco de dados é atualizado preservando suas sessões.
 
 **A passagem de 0.1.0/0.1.1 para esta entrega exige desinstalar o APK antigo**, pois a assinatura anterior era temporária.
 Antes disso, tenha sua chave da API disponível e copie qualquer memória importante: a desinstalação apaga os dados e configurações internos.
 A partir desta entrega direta, uma chave pessoal de assinatura estável permite futuras atualizações compatíveis sem apagar o caderno.
 Isso vale para APKs assinados com a mesma chave; os artefatos de depuração do GitHub Actions ainda têm assinatura temporária.
+
+## Ativar novas mensagens do WhatsApp
+
+1. Abra **WhatsApp · novas mensagens** e toque em **Ativar captura**.
+2. Habilite **WhisperBrain · WhatsApp** no acesso às notificações do Android.
+3. Volte e aguarde **Capturando novas mensagens**.
+4. Receba uma mensagem com o WhatsApp fora da conversa aberta.
+5. Toque em **Ver conversas salvas**. A sessão usa o nome da conversa e a data.
+
+O botão **Pausar captura** interrompe a entrada. Ao retomar, mensagens da pausa ficam fora.
+WhatsApp Business tem uma opção própria, inicialmente desligada. Capturar mensagens não usa sua chave de IA nem o microfone.
+Áudios e fotos não são recebidos como arquivos; o app guarda apenas o conteúdo disponibilizado na notificação.
+Para recomendações, abra uma nota e use **Gerar sinapses deste neurônio**.
+
+Se aparecer **Configuração restrita**, use a ajuda dentro do app. Quando disponível:
+Informações do app → menu ⋮ → Permitir configurações restritas. Depois volte à permissão de notificações.
+Caso a captura continue vazia, use **Copiar diagnóstico do WhatsApp**. Ele não inclui conteúdo das conversas.
+O Android e o WhatsApp precisam disponibilizar o texto na notificação; notificações ocultas ou ausentes não geram uma conversa completa.
 
 ## Caderno por texto
 
