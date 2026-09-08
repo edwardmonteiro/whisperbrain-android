@@ -1,0 +1,53 @@
+name: Build WhisperBrain APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: whisperbrain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+      - name: Check intervention behavior
+        run: |
+          mkdir -p build/policy-checks
+          javac -d build/policy-checks app/src/main/java/com/edward/whisperbrain/AdvicePolicy.java checks/PolicyChecks.java
+          java -cp build/policy-checks PolicyChecks
+      - name: Compile, test, and lint
+        run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Save installable test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperBrain-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Save validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperBrain-validation
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+          retention-days: 14

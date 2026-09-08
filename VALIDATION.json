@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-08",
+  "status": "SOURCE_READY_APK_BUILD_PENDING",
+  "intervention_policy_checks": {
+    "passed": 16,
+    "executed": true
+  },
+  "java_17_syntax": {
+    "files": 10,
+    "passed": true,
+    "android_type_checking": false
+  },
+  "xml_and_workflow_parsing": "passed",
+  "embedded_source_sha256": "cae180c5482d80349a4faecd8103cded37699dd5de97ccf16f23b110fa499151",
+  "embedded_source_round_trip": "passed",
+  "pending": [
+    "Android compilation and lint",
+    "six JVM advice-parser tests",
+    "APK assembly",
+    "installation",
+    "live API integration",
+    "earpiece and Bluetooth tests",
+    "locked-screen test"
+  ],
+  "paid_api_requests_made": 0
+}
