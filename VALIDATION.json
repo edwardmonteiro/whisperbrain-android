@@ -1,43 +1,14 @@
 {
   "date": "2026-09-08",
-  "status": "APK_BUILT_DEVICE_AND_LIVE_API_TESTS_PENDING",
-  "source_commit": "c92082676b0d4fe520870f35730de6f898eb5fac",
-  "workflow_run_id": 34174113456,
-  "workflow_url": "https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34174113456",
-  "cloud_build": "success",
+  "version": "0.1.1-alpha",
+  "status": "CLOUD_BUILD_PENDING",
   "intervention_policy_checks": {
-    "passed": 16
+    "passed": 29
   },
-  "jvm_advice_parser_tests": {
-    "passed": 6,
-    "failed": 0,
-    "ignored": 0
-  },
-  "android_compilation": "passed",
-  "android_lint": {
-    "errors": 0,
-    "warnings": 4,
-    "warning_categories": [
-      "NewerVersionAvailable",
-      "SetTextI18n"
-    ]
-  },
-  "debug_apk_assembly": "passed",
-  "backup_rules": "explicit cloud and Android device-transfer exclusions",
-  "artifact_id": 10036677794,
-  "artifact_zip_sha256": "e4e175d0bc6cd6bf9406dd621f9a010beed3f352339f87c36a5dcb4d3ebba713",
-  "artifact_sha256_verified": true,
-  "apk_file": "WhisperBrain-v0.1.0-alpha.apk",
-  "apk_size_bytes": 3599794,
-  "apk_sha256": "54baa445c66e44118ff7ca53a57785bd8d315c02f0b97ee72b4731af9df1715f",
-  "apk_signing_block_present": true,
   "paid_api_requests_made": 0,
+  "phone_report": "User spoke for 30 seconds with no visible response in 0.1.0; exact device cause not yet established.",
   "pending": [
-    "physical phone installation",
-    "live API authentication and behavior",
-    "earpiece and Bluetooth audio routing",
-    "screen-lock and battery behavior",
-    "incoming-call interruption",
-    "network failure and timeout behavior on device"
+    "cloud compilation and WebSocket fixture tests",
+    "live API and physical phone retest"
   ]
 }

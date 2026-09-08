@@ -42,6 +42,31 @@ public final class PolicyChecks {
         busy.speechStopped(6500); busy.committed();
         expect(!busy.request(9000, false, false, false), "Manual mode stays quiet by itself");
         expect(busy.request(9000, false, true, false), "Manual mode works at a quiet moment");
+
+        AdvicePolicy stalled = new AdvicePolicy();
+        stalled.speechStarted(0);
+        expect(!stalled.requestCheckpoint(19999, true, false), "Do not checkpoint a short turn");
+        expect(!stalled.requestCheckpoint(20000, false, false), "Manual mode must never checkpoint automatically");
+        expect(stalled.requestCheckpoint(20000, true, false), "Continuous speech produces a visible analysis after 20 seconds");
+        expect(!stalled.quietForVoice(22000), "A checkpoint must not cause spoken advice over the conversation");
+        expect(!stalled.requestSnapshot(22000, false), "Manual analysis cannot overlap a checkpoint response");
+        stalled.committed(); stalled.responseStarted(); stalled.completed();
+        expect(!stalled.requestCheckpoint(39999, true, false), "Long turns still respect the request cooldown");
+        stalled.speechStopped(40000);
+        expect(!stalled.request(50000, true, false, false), "A forced commit must not be analyzed again on silence");
+        expect(stalled.quietForVoice(41500), "A queued voice can play after a later pause");
+
+        AdvicePolicy noVad = new AdvicePolicy();
+        expect(noVad.requestSnapshot(1000, false), "Manual analysis is available when VAD never detected a turn");
+        expect(!noVad.requestSnapshot(1001, false), "Repeated taps cannot overlap API responses");
+        noVad.committed(); noVad.responseStarted(); noVad.completed();
+        expect(!noVad.requestSnapshot(2000, true), "Manual analysis does not overlap voice synthesis or playback");
+        expect(noVad.requestSnapshot(2000, false), "A subsequent explicit analysis can reuse context");
+
+        AdvicePolicy newSpeech = heard(0, 1000);
+        newSpeech.request(2500, true, false, false); newSpeech.responseStarted();
+        newSpeech.speechStarted(3000); newSpeech.speechStopped(4000); newSpeech.committed(); newSpeech.completed();
+        expect(newSpeech.request(22500, true, false, false), "Audio received after response creation stays eligible");
         System.out.println(checks + " intervention policy checks passed.");
     }
 }

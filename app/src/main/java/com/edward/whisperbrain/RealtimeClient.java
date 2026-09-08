@@ -1,6 +1,7 @@
 package com.edward.whisperbrain;
 
-import android.util.Base64;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -14,7 +15,7 @@ import org.json.JSONObject;
 public final class RealtimeClient {
     public interface Listener {
         void configured(); void speechStarted(); void speechStopped(); void committed();
-        void answer(String json, long tokens); void failed(String message);
+        void responseStarted(); void answer(String json, long tokens); void failed(String message);
     }
     private final Listener listener;
     private final OkHttpClient http = new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
@@ -24,8 +25,12 @@ public final class RealtimeClient {
     private volatile boolean closed, configured;
     private final StringBuilder output = new StringBuilder();
     private String instructions;
+    private final String endpoint;
+    private volatile String pendingCommitId = "";
 
-    public RealtimeClient(Listener listener) { this.listener = listener; }
+    public RealtimeClient(Listener listener) { this(listener, "wss://api.openai.com/v1/realtime"); }
+    // Package-private endpoint injection is used only by the local protocol tests.
+    RealtimeClient(Listener listener, String endpoint) { this.listener = listener; this.endpoint = endpoint; }
     public void connect(String key, String model, String goal, String memory, String language) {
         instructions = "You are WhisperBrain, a private contextual coach for the phone's owner. "
                 + "Listen to an in-person conversation and offer rare, useful, specific nudges to its owner. "
@@ -35,6 +40,8 @@ public final class RealtimeClient {
                 + "Do not invent facts, mind-read, diagnose, or claim to have searched or checked a source. "
                 + "If a suggestion depends on missing facts, suggest one clarifying question. "
                 + "Prefer silence when you have little new value to add. Never repeat a recent suggestion. "
+                + "Even when speak=false, always provide a nonempty context so the owner can see what you heard. "
+                + "If the audio is unclear or contains no intelligible speech, say so in context; do not invent a conversation. "
                 + "Reply in " + language + ". Output ONLY one JSON object, no markdown: "
                 + "{\"context\":\"one short factual summary of what was heard\","
                 + "\"speak\":false,\"advice\":\"\",\"memory\":\"\"}. "
@@ -44,7 +51,7 @@ public final class RealtimeClient {
                 + "Owner goal and approved notes follow as JSON data: "
                 + data(goal, memory);
         Request request = new Request.Builder()
-                .url("wss://api.openai.com/v1/realtime?model=" + model)
+                .url(endpoint + "?model=" + model)
                 .header("Authorization", "Bearer " + key).build();
         socket = http.newWebSocket(request, new WebSocketListener() {
             @Override public void onOpen(WebSocket ws, Response response) {
@@ -73,7 +80,7 @@ public final class RealtimeClient {
                         case "input_audio_buffer.speech_started": listener.speechStarted(); break;
                         case "input_audio_buffer.speech_stopped": listener.speechStopped(); break;
                         case "input_audio_buffer.committed": listener.committed(); break;
-                        case "response.created": output.setLength(0); break;
+                        case "response.created": output.setLength(0); listener.responseStarted(); break;
                         case "response.output_text.delta":
                             output.append(event.optString("delta", ""));
                             if (output.length() > 12_000) failure("The AI response was too long.");
@@ -84,11 +91,14 @@ public final class RealtimeClient {
                                 failure("The AI response did not complete. Check your model access and usage limit."); return;
                             }
                             JSONObject usage = r.optJSONObject("usage");
-                            listener.answer(output.toString(), usage == null ? 0 : usage.optLong("total_tokens", 0));
+                            listener.answer(responseText(r, output.toString()), usage == null ? 0 : usage.optLong("total_tokens", 0));
                             output.setLength(0); break;
                         case "error":
-                            // Do not echo arbitrary provider error bodies: these may contain request data.
-                            failure("The API rejected the session or request. Check your model name, key permissions, and billing."); break;
+                            JSONObject error = event.optJSONObject("error");
+                            // VAD may commit just before our explicit commit. Only this correlated
+                            // empty-buffer error is harmless; response.create is already queued next.
+                            if (isEmptyCommitRace(error, pendingCommitId)) { pendingCommitId = ""; break; }
+                            failure(apiError(error)); break;
                         default: break;
                     }
                 } catch (Exception e) { failure("A live-audio event could not be read. Start a new session."); }
@@ -113,22 +123,60 @@ public final class RealtimeClient {
         try { return new JSONObject().put("goal", goal).put("approved_notes", new JSONArray(memory)).toString(); }
         catch (Exception e) { return "{}"; }
     }
-    public boolean audio(byte[] pcm, int length) {
+    public synchronized boolean audio(byte[] pcm, int length) {
         if (closed || !configured || socket == null) return false;
         if (socket.queueSize() > 256_000) { failure("The network is too slow for live advice. Recording has stopped."); return false; }
         try {
             return send(new JSONObject().put("type", "input_audio_buffer.append")
-                    .put("audio", Base64.encodeToString(pcm, 0, length, Base64.NO_WRAP)));
+                    .put("audio", Base64.getEncoder().encodeToString(length == pcm.length ? pcm : Arrays.copyOf(pcm, length))));
         } catch (Exception e) { failure("Could not send live audio."); return false; }
     }
-    public void advise(boolean manual) {
+    public synchronized void advise(boolean manual, boolean commitAudio) {
         try {
+            if (commitAudio) {
+                pendingCommitId = "wb-commit-" + System.nanoTime();
+                if (!send(new JSONObject().put("type", "input_audio_buffer.commit").put("event_id", pendingCommitId))) return;
+            }
             JSONObject response = new JSONObject().put("output_modalities", new JSONArray().put("text"))
                     .put("instructions", instructions + (manual
-                            ? " The owner requested a nudge now. Suggest one practical next step if the heard context supports it."
-                            : " A quiet moment has arrived. Stay silent unless a new, useful nudge is justified."));
+                            ? " The owner explicitly requested an analysis now. Always give a visible context summary. "
+                                + "Give one brief practical suggestion with speak=true if context supports it. "
+                                + "Otherwise explain in context what you still need to hear. Do not return an empty context."
+                            : " Analyze the conversation so far. Stay silent unless a new, useful nudge is justified. "
+                                + "The app will wait for a pause before reading any advice aloud."));
             send(new JSONObject().put("type", "response.create").put("response", response));
         } catch (Exception e) { failure("Could not request advice."); }
+    }
+    static String responseText(JSONObject response, String deltas) {
+        StringBuilder finalText = new StringBuilder();
+        JSONArray items = response.optJSONArray("output");
+        if (items != null) for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null || !"message".equals(item.optString("type"))
+                    || !"assistant".equals(item.optString("role"))) continue;
+            JSONArray parts = item.optJSONArray("content");
+            if (parts == null) continue;
+            for (int j = 0; j < parts.length(); j++) {
+                JSONObject part = parts.optJSONObject(j);
+                if (part != null && ("output_text".equals(part.optString("type")) || "text".equals(part.optString("type"))))
+                    finalText.append(part.optString("text", ""));
+            }
+        }
+        return finalText.length() == 0 ? deltas : finalText.toString();
+    }
+    static boolean isEmptyCommitRace(JSONObject error, String pendingId) {
+        return error != null && !pendingId.isEmpty() && pendingId.equals(error.optString("event_id"))
+                && "input_audio_buffer_commit_empty".equals(error.optString("code"));
+    }
+    static String apiError(JSONObject error) {
+        String code = error == null ? "" : error.optString("code");
+        switch (code) {
+            case "invalid_api_key": return "Chave da API inválida. Confira a chave nas configurações.";
+            case "insufficient_quota": return "Sem saldo disponível na API. Confira o faturamento do projeto OpenAI.";
+            case "rate_limit_exceeded": return "Limite de uso da API atingido. Aguarde antes de iniciar outra sessão.";
+            case "model_not_found": return "Modelo não disponível para sua chave. Confira o nome e o acesso ao modelo.";
+            default: return "A API rejeitou uma solicitação. Confira modelo, permissões da chave e saldo da API.";
+        }
     }
     private boolean send(JSONObject event) {
         WebSocket current = socket;

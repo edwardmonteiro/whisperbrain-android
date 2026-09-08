@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -38,7 +40,7 @@ public final class MainActivity extends Activity {
     private final int INK = Color.rgb(240, 247, 252), MUTED = Color.rgb(172, 189, 209);
     private final int ACCENT = Color.rgb(113, 241, 203);
     private Vault vault;
-    private TextView status, detail, meta, context, advice;
+    private TextView status, detail, meta, context, advice, hearing;
     private Button start, nudge, connection, test, saveNote, memory;
     private EditText goal;
     private Switch automatic;
@@ -62,12 +64,14 @@ public final class MainActivity extends Activity {
         });
         root.addView(label("WHISPERBRAIN", 16, ACCENT, true));
         root.addView(label("A little space to think.", 30, INK, true));
-        root.addView(label("Personal Android alpha · 0.1", 14, MUTED, false));
+        root.addView(label("Android pessoal · 0.1.1-alpha", 14, MUTED, false));
         gap(root, 22);
 
         LinearLayout live = card(root);
         status = label(SessionState.status, 24, INK, true); live.addView(status);
         detail = label(SessionState.detail, 16, MUTED, false); live.addView(detail);
+        hearing = label(SessionState.hearing, 16, ACCENT, false); live.addView(hearing);
+        context = label(SessionState.context, 16, INK, false); live.addView(context);
         gap(live, 12);
         meter = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         meter.setMax(100); meter.setProgressTintList(ColorStateList.valueOf(ACCENT));
@@ -75,7 +79,7 @@ public final class MainActivity extends Activity {
         meter.setContentDescription("Microphone level");
         live.addView(meter, new LinearLayout.LayoutParams(-1, dp(8)));
         meta = label("", 14, MUTED, false); live.addView(meta);
-        start = button("Start listening", ACCENT, BG); live.addView(start);
+        start = button("Iniciar escuta", ACCENT, BG); live.addView(start);
         start.setOnClickListener(v -> {
             if (SessionState.active) {
                 startService(new Intent(this, BrainService.class).setAction(BrainService.STOP));
@@ -88,17 +92,16 @@ public final class MainActivity extends Activity {
                 } catch (Exception e) { toast("Could not read or save settings. Your session has not started."); }
             }
         });
-        nudge = button("Nudge me", Color.rgb(40, 54, 73), INK); live.addView(nudge);
+        nudge = button("Analisar agora", Color.rgb(40, 54, 73), INK); live.addView(nudge);
         nudge.setOnClickListener(v -> startService(new Intent(this, BrainService.class).setAction(BrainService.ASK)));
+        live.addView(label("Fale uma frase e pause por 3 segundos. Analisar agora também funciona sem esperar o detector de pausa.", 14, MUTED, false));
         live.addView(label("During a session, microphone audio and approved notes go to OpenAI. Use with participants’ agreement.", 14, MUTED, false));
         gap(root, 18);
 
         LinearLayout next = card(root);
-        next.addView(label("YOUR NEXT NUDGE", 14, ACCENT, true));
+        next.addView(label("SUA PRÓXIMA DICA", 14, ACCENT, true));
         advice = label(SessionState.advice, 22, INK, true); next.addView(advice);
         gap(next, 12);
-        next.addView(label("Context · AI interpretation", 14, MUTED, false));
-        context = label(SessionState.context, 16, INK, false); next.addView(context);
         saveNote = button("Review a memory", Color.rgb(40, 54, 73), INK); next.addView(saveNote);
         saveNote.setOnClickListener(v -> editNote(SessionState.memory));
         gap(root, 18);
@@ -110,16 +113,21 @@ public final class MainActivity extends Activity {
         goal.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         goal.setText(read("goal", "Help me think clearly and ask better questions."));
         intention.addView(goal);
-        automatic = new Switch(this); automatic.setText("Automatic nudges"); automatic.setTextSize(16);
+        automatic = new Switch(this); automatic.setText("Dicas automáticas"); automatic.setTextSize(16);
         automatic.setTextColor(INK); automatic.setPadding(0, dp(12), 0, dp(12));
         automatic.setChecked(Boolean.parseBoolean(read("automatic", "true"))); intention.addView(automatic);
-        intention.addView(label("Waits for pauses. Checks at most once every 20 seconds. You can also ask for a nudge.", 14, MUTED, false));
+        intention.addView(label("Analisa nas pausas ou após 20 segundos de fala contínua detectada. A voz aguarda uma pausa. Você também pode analisar manualmente.", 14, MUTED, false));
         gap(root, 16);
-        test = button("Test private audio", SURFACE, INK); root.addView(test);
+        test = button("Testar áudio privado", SURFACE, INK); root.addView(test);
         test.setOnClickListener(v -> permissions(2));
         root.addView(label("Use calling-capable earbuds, or hold the phone’s earpiece to your ear. Start at a comfortable volume.", 14, MUTED, false));
-        connection = button("Connection & voice settings", SURFACE, INK); root.addView(connection);
+        connection = button("Configurações de conexão e voz", SURFACE, INK); root.addView(connection);
         connection.setOnClickListener(v -> settings());
+        Button diagnostic = button("Copiar diagnóstico", SURFACE, INK); root.addView(diagnostic);
+        diagnostic.setOnClickListener(v -> {
+            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("WhisperBrain", SessionState.diagnostics()));
+            toast("Diagnóstico copiado, sem chave, conversa ou memórias.");
+        });
         memory = button("Your approved memories", SURFACE, INK); root.addView(memory);
         memory.setOnClickListener(v -> memories());
         root.addView(label("Only notes you approve are saved. Live audio is not recorded to a file by this app. API usage is billed separately from ChatGPT.", 14, MUTED, false));
@@ -138,20 +146,24 @@ public final class MainActivity extends Activity {
     }
     private void render() {
         if (status == null) return;
-        status.setText(SessionState.status); detail.setText(SessionState.detail);
+        status.setText(SessionState.status); detail.setText(SessionState.detail); hearing.setText(SessionState.hearing);
         context.setText(SessionState.context); advice.setText(SessionState.advice); meter.setProgress(SessionState.level);
         String info = SessionState.route;
         if (!SessionState.input.isEmpty()) info += "\n" + SessionState.input;
         if (SessionState.active) {
             long seconds = (SystemClock.elapsedRealtime() - SessionState.started) / 1000;
-            info += String.format(Locale.US, "\n%02d:%02d elapsed · %d nudges\n%.1f MB audio sent · %d reported tokens",
+            info += String.format(Locale.US, "\n%02d:%02d · %d dicas\n%.1f MB de áudio enviado · %d tokens informados",
                     seconds / 60, seconds % 60, SessionState.suggestions,
                     SessionState.audioBytes / 1_000_000.0, SessionState.tokens);
         }
+        if (SessionState.active || SessionState.requests > 0 || SessionState.audioBytes > 0)
+            info += String.format(Locale.US, "\nFalas detectadas: %d · trechos: %d\nAnálises pedidas: %d · respostas: %d",
+                    SessionState.speechEvents, SessionState.turns, SessionState.requests, SessionState.replies);
         meta.setText(info.trim());
-        start.setText(SessionState.active ? "Stop listening" : "Start listening");
+        start.setText(SessionState.active ? "Parar escuta" : "Iniciar escuta");
         start.setBackground(round(SessionState.active ? Color.rgb(255, 167, 159) : ACCENT, 14));
-        start.setEnabled(!testing); nudge.setEnabled(SessionState.connected && !testing);
+        start.setEnabled(!testing); nudge.setEnabled(SessionState.connected && !testing && !SessionState.requestInFlight);
+        nudge.setText(SessionState.requestInFlight ? "Analisando…" : "Analisar agora");
         connection.setEnabled(!SessionState.active && !testing); test.setEnabled(!SessionState.active && !testing);
         goal.setEnabled(!SessionState.active && !testing); automatic.setEnabled(!SessionState.active && !testing);
         saveNote.setEnabled(!SessionState.memory.isEmpty());

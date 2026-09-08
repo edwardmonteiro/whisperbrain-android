@@ -34,9 +34,10 @@ public final class BrainService extends Service {
     private volatile boolean capturing;
     private volatile long sentBytes, resumeCaptureAt;
     private volatile int level;
-    private boolean automatic, manual, stopping;
+    private boolean automatic, stopping;
     private volatile long generation;
-    private long deadline, requestedAt;
+    private long deadline, requestedAt, captureStarted, pendingVoiceAt;
+    private String pendingVoice = "";
 
     @Override public IBinder onBind(Intent intent) { return null; }
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -44,13 +45,15 @@ public final class BrainService extends Service {
         String action = intent.getAction();
         if (STOP.equals(action)) finish("Microphone and connection are off.");
         else if (ASK.equals(action)) {
-            if (SessionState.active && policy != null && policy.hasContext()) {
-                manual = true;
-                SessionState.detail = "Your nudge is queued for the next quiet moment."; SessionState.changed();
+            if (SessionState.connected && policy != null && sentBytes >= 4800) {
+                long now = SystemClock.elapsedRealtime();
+                if (policy.requestSnapshot(now, voice.isBusy())) requestAdvice(now, true, true);
+                else SessionState.detail = "Uma análise ou leitura já está em andamento.";
             } else {
-                SessionState.detail = "Listen to a complete sentence first."; SessionState.changed();
+                SessionState.detail = "Aguarde a conexão e fale uma frase antes de analisar.";
                 if (!SessionState.active) stopSelf();
             }
+            SessionState.changed();
         } else if (START.equals(action) && !SessionState.active) startSession();
         return START_NOT_STICKY;
     }
@@ -97,7 +100,8 @@ public final class BrainService extends Service {
             deadline = SessionState.started + minutes * 60_000L;
             automatic = Boolean.parseBoolean(vault.get("automatic", "true"));
             boolean headphonesOnly = Boolean.parseBoolean(vault.get("headphones_only", "false"));
-            policy = new AdvicePolicy(); manual = false; requestedAt = 0; sentBytes = 0; level = 0; resumeCaptureAt = 0;
+            policy = new AdvicePolicy(); requestedAt = 0; sentBytes = 0; level = 0; resumeCaptureAt = 0;
+            captureStarted = 0; pendingVoice = ""; pendingVoiceAt = 0;
             wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WhisperBrain:session");
             wake.acquire(minutes * 60_000L + 5_000L);
             // Clean up only our own temporary synthesized advice after a prior interrupted process.
@@ -111,7 +115,7 @@ public final class BrainService extends Service {
                 @Override public void finished() { postFor(id, () -> {
                     resumeCaptureAt = SystemClock.elapsedRealtime() + 300;
                     policy.voiceFinished(SystemClock.elapsedRealtime());
-                    SessionState.status = "Listening"; SessionState.detail = "Waiting for a useful moment."; SessionState.changed();
+                    SessionState.status = "Ouvindo"; SessionState.detail = "Dica lida. Continuo acompanhando a conversa."; SessionState.changed();
                 }); }
                 @Override public void failed(String message) { postFor(id, () -> finish(message)); }
             });
@@ -128,11 +132,25 @@ public final class BrainService extends Service {
             @Override public void speechStarted() { postFor(id, () -> {
                 policy.speechStarted(SystemClock.elapsedRealtime());
                 // Avoid delivering a pending nudge if someone has started speaking again.
-                if (voice != null && voice.isBusy() && !voice.isPlaying()) voice.cancel();
-                SessionState.status = "Listening"; SessionState.detail = "Speech detected.";
+                if (voice != null && voice.isBusy() && !voice.isPlaying()) {
+                    voice.cancel();
+                    pendingVoice = SessionState.advice; pendingVoiceAt = SystemClock.elapsedRealtime();
+                }
+                SessionState.speechEvents++;
+                SessionState.hearing = "A API detectou fala. Acompanhando…";
+                if (!policy.isInFlight()) SessionState.status = "Ouvindo";
+                SessionState.changed();
             }); }
-            @Override public void speechStopped() { postFor(id, () -> policy.speechStopped(SystemClock.elapsedRealtime())); }
-            @Override public void committed() { postFor(id, () -> policy.committed()); }
+            @Override public void speechStopped() { postFor(id, () -> {
+                policy.speechStopped(SystemClock.elapsedRealtime());
+                SessionState.hearing = "Pausa detectada. Preparando a análise.";
+                SessionState.changed();
+            }); }
+            @Override public void committed() { postFor(id, () -> {
+                policy.committed(); SessionState.turns++;
+                SessionState.hearing = "Trecho de áudio confirmado pela API."; SessionState.changed();
+            }); }
+            @Override public void responseStarted() { postFor(id, () -> policy.responseStarted()); }
             @Override public void answer(String json, long tokens) { postFor(id, () -> handleAdvice(json, tokens)); }
             @Override public void failed(String message) { postFor(id, () -> finish(message)); }
         });
@@ -176,7 +194,9 @@ public final class BrainService extends Service {
                         for (int i = 0; i + 1 < count; i += 2) {
                             short sample = (short) ((pcm[i] & 255) | (pcm[i + 1] << 8)); sum += (double) sample * sample;
                         }
-                        level = Math.min(100, (int) (Math.sqrt(sum / Math.max(1, count / 2)) / 32768.0 * 400));
+                        double rms = Math.sqrt(sum / Math.max(1, count / 2)) / 32768.0;
+                        double db = 20 * Math.log10(Math.max(0.000001, rms));
+                        level = Math.max(0, Math.min(100, (int) ((db + 60) * 100 / 60)));
                         // This first version deliberately omits input during its own brief spoken advice.
                         if (!privateVoice.isPlaying() && SystemClock.elapsedRealtime() >= resumeCaptureAt) {
                             if (!live.audio(pcm, count)) break;
@@ -187,8 +207,10 @@ public final class BrainService extends Service {
                 finally { try { capture.release(); } catch (Exception ignored) {} }
             }, "WhisperBrain-mic");
             worker.start();
-            SessionState.connected = true; SessionState.status = "Listening";
-            SessionState.detail = automatic ? "Automatic nudges · 20-second cooldown" : "Listening · tap Nudge me when you want advice";
+            captureStarted = SystemClock.elapsedRealtime();
+            SessionState.connected = true; SessionState.status = "Ouvindo";
+            SessionState.hearing = "Microfone ligado. Aguardando a API detectar fala.";
+            SessionState.detail = "Fale uma frase e faça uma pausa de 3 segundos, ou toque em Analisar agora.";
             SessionState.changed();
         } catch (Exception e) {
             if (recorder != null) { try { recorder.release(); } catch (Exception ignored) {} recorder = null; }
@@ -205,41 +227,67 @@ public final class BrainService extends Service {
             }
             if (SessionState.connected && voice != null) {
                 if (!voice.routeIsValid()) { finish("Private audio route changed. Your session has stopped."); return; }
-                if (policy.request(now, automatic, manual, voice.isBusy())) {
-                    boolean requestedManually = manual; manual = false; requestedAt = now;
-                    SessionState.status = "Considering a nudge"; SessionState.detail = "Still listening while the AI considers your context.";
-                    api.advise(requestedManually);
+                if (!pendingVoice.isEmpty() && now - pendingVoiceAt > 30_000) pendingVoice = "";
+                if (!pendingVoice.isEmpty() && !policy.isInFlight() && policy.quietForVoice(now) && !voice.isBusy()) {
+                    String next = pendingVoice; pendingVoice = ""; speakAdvice(next);
                 }
+                if (policy.request(now, automatic, false, voice.isBusy())) {
+                    requestAdvice(now, false, false);
+                } else if (policy.requestCheckpoint(now, automatic, voice.isBusy())) {
+                    requestAdvice(now, false, true);
+                }
+                if (SessionState.speechEvents == 0 && captureStarted > 0 && now - captureStarted >= 12_000)
+                    SessionState.hearing = "A API ainda não detectou fala. Confira a barra do microfone e toque em Analisar agora.";
                 try {
                     AudioDeviceInfo source = recorder == null ? null : recorder.getRoutedDevice();
+                    if (recorder != null && recorder.getActiveRecordingConfiguration() != null
+                            && recorder.getActiveRecordingConfiguration().isClientSilenced()) {
+                        finish("O Android silenciou o microfone deste app. Confira o acesso ao microfone e outros apps que estejam gravando."); return;
+                    }
                     if (source != null) SessionState.input = source.getType() == AudioDeviceInfo.TYPE_BUILTIN_MIC
                             ? "Phone microphone" : "Input: " + source.getProductName();
                 } catch (Exception ignored) {}
             }
-            SessionState.level = level; SessionState.audioBytes = sentBytes; SessionState.changed();
+            SessionState.level = level; SessionState.audioBytes = sentBytes;
+            SessionState.requestInFlight = policy != null && policy.isInFlight(); SessionState.changed();
             main.postDelayed(this, 500);
         }
     };
+    private void requestAdvice(long now, boolean manual, boolean commitAudio) {
+        requestedAt = now; pendingVoice = ""; SessionState.requests++; SessionState.requestInFlight = true;
+        SessionState.status = "Analisando sua fala";
+        SessionState.detail = "Aguardando a resposta da API. O resultado aparecerá na tela.";
+        api.advise(manual, commitAudio);
+    }
+    private void speakAdvice(String text) {
+        SessionState.status = "Lendo a dica";
+        SessionState.detail = "A entrada de áudio pausa durante a leitura para evitar eco.";
+        voice.speak(text);
+    }
     private void handleAdvice(String json, long tokens) {
-        policy.completed(); requestedAt = 0; SessionState.tokens += tokens;
+        policy.completed(); requestedAt = 0; SessionState.requestInFlight = false;
+        SessionState.tokens += tokens; SessionState.replies++;
         try {
             Advice a = Advice.parse(json);
-            if (!a.context.isEmpty()) SessionState.context = a.context;
+            SessionState.context = a.context.isEmpty() ? "A API respondeu sem um resumo. Tente explicar a situação e analisar novamente." : a.context;
             SessionState.memory = a.memory;
-            if (!a.text.isEmpty()) SessionState.advice = a.text;
-            SessionState.status = "Listening";
-            SessionState.detail = "No new spoken nudge needed.";
+            SessionState.advice = a.text.isEmpty() ? "Contexto analisado. Nenhuma nova dica sugerida desta vez." : a.text;
+            SessionState.status = "Análise recebida";
+            SessionState.detail = "Veja o resumo abaixo. A escuta continua.";
             if (a.speak) {
                 SessionState.suggestions++;
-                if (!policy.isSpeaking() && !voice.isBusy() && voice.routeIsValid()) {
-                    SessionState.status = "A quiet nudge";
-                    SessionState.detail = "Microphone input is omitted during spoken advice to prevent feedback.";
-                    voice.speak(a.text);
-                } else SessionState.detail = "A nudge is on screen. Speech resumed, so it was not read aloud.";
+                long now = SystemClock.elapsedRealtime();
+                if (policy.quietForVoice(now) && !voice.isBusy() && voice.routeIsValid()) speakAdvice(a.text);
+                else {
+                    pendingVoice = a.text; pendingVoiceAt = now;
+                    SessionState.detail = "Dica na tela. A leitura aguarda uma pausa na conversa.";
+                }
             }
         } catch (Exception e) {
-            SessionState.status = "Listening";
-            SessionState.detail = "The AI reply was not usable. It was not spoken or saved.";
+            SessionState.status = "Resposta fora do formato";
+            SessionState.context = "A API respondeu, mas o formato não pôde ser interpretado.";
+            SessionState.advice = "Toque em Analisar agora para tentar novamente.";
+            SessionState.detail = "Nenhuma dica foi lida ou salva a partir dessa resposta.";
         }
         SessionState.changed();
     }
@@ -258,7 +306,9 @@ public final class BrainService extends Service {
         if (api != null) { api.close(); api = null; }
         if (voice != null) { voice.shutdown(); voice = null; }
         if (wake != null) { if (wake.isHeld()) wake.release(); wake = null; }
+        pendingVoice = ""; SessionState.requestInFlight = false;
         SessionState.active = false; SessionState.connected = false; SessionState.level = 0;
+        SessionState.audioBytes = sentBytes; SessionState.hearing = "Microfone e API desligados.";
         SessionState.status = "Session ended"; SessionState.detail = reason; SessionState.changed();
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf();
     }

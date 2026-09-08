@@ -3,9 +3,9 @@
 A native Android starting point for live context and brief private advice.
 Built for a workflow where your Android phone is your only computer.
 
-**Delivery status: an installable test APK has been built. Physical-device and live API testing are still pending.**
-[Verified APK build](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34174113456) · 22 checks passed · Android lint: 0 errors.
-Open the run and download the `WhisperBrain-Android-APK` artifact.
+**Version 0.1.1-alpha addresses the first phone report: speech produced no visible response.**
+The exact cause on the phone is not yet confirmed. The code now avoids an indefinite VAD wait for manual analysis,
+checks long detected speech every 20 seconds, and displays input/response progress. See `VALIDATION.json` for build status.
 No paid AI requests were made during development. No API key is included.
 
 ## Build from your phone
@@ -25,8 +25,9 @@ See [PHONE-SETUP.md](PHONE-SETUP.md) for installation and first-use instructions
 | Audio capture | Native microphone streaming, PCM16 mono, 24 kHz |
 | Context | OpenAI Realtime conversation context during each session |
 | Model | Editable model ID; default `gpt-realtime-2.1-mini` |
-| Advice timing | Speech detection, 1.5 seconds of additional quiet, 20-second check cooldown |
-| Intervention | Model can choose silence; manual **Nudge me** button |
+| Advice timing | Analyses after pauses or 20 seconds of continuous detected speech; playback waits for quiet |
+| Intervention | Model can choose silence, with visible context; **Analisar agora** explicitly commits audio and requests analysis |
+| Diagnostics | Microphone level, sent bytes, detected speech, committed audio, request/reply counts; copyable without conversation or key |
 | Voice | Installed offline Android TTS at a reduced playback volume |
 | Private route | Calling-capable earbuds, or the phone earpiece |
 | Session control | Explicit Start/Stop, ongoing notification, 10/20/45-minute time limits |
@@ -37,12 +38,12 @@ See [PHONE-SETUP.md](PHONE-SETUP.md) for installation and first-use instructions
 
 ## First use after installing the APK
 
-1. Run **Test private audio**. No AI key or microphone capture is needed for that test.
-2. If needed, use **Connection & voice settings → Install Android voice data** to download an offline voice.
+1. Run **Testar áudio privado**. No AI key or microphone capture is needed for that test.
+2. If needed, use **Configurações de conexão e voz → Install Android voice data** to download an offline voice.
 3. Add your own API key in the app's Connection settings. Do not paste it into chat or a repository.
 4. Set a short goal, for example: “Help me identify unclear assumptions and ask one better question.”
 5. Start a 10-minute session with participants who agree to AI assistance.
-6. Speak a complete sentence, pause, and try **Nudge me**.
+6. Speak a complete sentence, pause for 3 seconds, and try **Analisar agora**. A context summary appears near the top even if no spoken nudge is useful.
 7. Review any suggested memory before saving it. New notes are included from the next session onward.
 
 You need internet access and separately billed OpenAI API access. Model access depends on your API project.
@@ -59,7 +60,7 @@ The Android voice is soft speech; its tone depends on the installed voice. This 
 - **Memory:** approved notes persist locally; full conversations do not persist locally between sessions. Context is bounded by the provider's session/context limits.
 - **Cloud processing:** live audio, your goal, and approved notes go to OpenAI. “No local raw recording” does not mean zero retention by the provider. Consult its data controls.
 - **Personal credentials:** direct use of your own key is a personal prototype tradeoff. Before distributing the app, use an authenticated backend issuing short-lived client secrets, with usage enforcement. The app also accepts an `ek_` client secret, but does not refresh expired secrets or implement the broker.
-- **Test signing:** the cloud workflow uses Android's generated debug signing key. A fresh build can have a different signature and require uninstalling the earlier app, which deletes local memories. Establish private, stable release signing before relying on persistent updates.
+- **Test signing:** the cloud workflow uses Android's generated debug signing key. A fresh build can have a different signature and require uninstalling the earlier app, which deletes the saved API key, settings and local memories. Retain needed notes and have your API key available before uninstalling. Establish private, stable release signing before relying on persistent updates.
 
 ## Architecture
 
@@ -80,10 +81,10 @@ robust echo cancellation, interruption handling, and server-side usage controls.
 
 ## Validation
 
-The cloud build passed Android compilation, debug signing, APK assembly, and Android lint with zero errors.
-The 16 intervention-policy checks and all 6 JVM advice-parser tests passed.
-The downloaded APK artifact is checked against the SHA-256 digest returned by GitHub.
-See `VALIDATION.json` for the exact tested source commit, workflow run, artifact, and checksum.
+The updated policy passes 29 local behavioral checks. The cloud workflow also runs the advice-parser tests,
+local WebSocket protocol fixtures, Android compilation and lint. The protocol fixtures cover manual requests
+without VAD events, final text without deltas, and a correlated empty-buffer commit race. They do not call OpenAI.
+See `VALIDATION.json` for the actual tested commit, cloud outcome and downloadable artifact checksums.
 
 The remaining validation requires a real Android phone: installation, live API authentication and advice,
 earpiece/Bluetooth routing, screen lock, incoming calls, network loss, and session timeout.
