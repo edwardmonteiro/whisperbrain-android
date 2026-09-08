@@ -1,6 +1,6 @@
 # Build WhisperBrain using only your Android phone
 
-**This package is source code. It is not an installed or tested Android app yet.**
+**An installable test APK is available from the successful cloud build. Physical audio and live API testing remain pending.**
 
 ## Download and install the cloud build
 

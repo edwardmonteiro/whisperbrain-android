@@ -3,8 +3,9 @@
 A native Android starting point for live context and brief private advice.
 Built for a workflow where your Android phone is your only computer.
 
-**Delivery status: cloud build configured; physical-device and live API testing are still pending.**
-Check [GitHub Actions](https://github.com/edwardmonteiro/whisperbrain-android/actions) for the current build result and APK artifact.
+**Delivery status: an installable test APK has been built. Physical-device and live API testing are still pending.**
+[Verified APK build](https://github.com/edwardmonteiro/whisperbrain-android/actions/runs/34174113456) · 22 checks passed · Android lint: 0 errors.
+Open the run and download the `WhisperBrain-Android-APK` artifact.
 No paid AI requests were made during development. No API key is included.
 
 ## Build from your phone
@@ -79,24 +80,18 @@ robust echo cancellation, interruption handling, and server-side usage controls.
 
 ## Validation
 
-Already executed in the development environment:
+The cloud build passed Android compilation, debug signing, APK assembly, and Android lint with zero errors.
+The 16 intervention-policy checks and all 6 JVM advice-parser tests passed.
+The downloaded APK artifact is checked against the SHA-256 digest returned by GitHub.
+See `VALIDATION.json` for the exact tested source commit, workflow run, artifact, and checksum.
 
-- **16 deterministic intervention-policy checks passed.**
-- **All 10 Java files passed Java 17 syntax parsing.** This is parsing, not Android type checking.
-- XML, workflow structure, and embedded-source integrity are checked during packaging.
-
-The GitHub workflow is configured to run:
-
-1. The 16 policy checks.
-2. Six JVM advice-parser tests.
-3. Android compilation, lint, and debug APK assembly.
-
-Pending: dependency resolution, Android type checking, Android lint, the six parser tests, APK assembly,
-installation, live API authentication/protocol validation, and physical audio testing.
+The remaining validation requires a real Android phone: installation, live API authentication and advice,
+earpiece/Bluetooth routing, screen lock, incoming calls, network loss, and session timeout.
+A successful build does not verify these physical-device behaviors.
 
 For a first device test, verify a complete cycle: audio test → permission grant → one contextual nudge → Stop.
 Then verify screen lock, incoming call interruption, earbud disconnection, network loss, and session timeout.
-Confirm no private advice is audible through the loudspeaker. Do not treat source inspection as a hardware test.
+Confirm no private advice is audible through the loudspeaker. Source inspection is not a hardware test.
 
 ## Build toolchain
 
