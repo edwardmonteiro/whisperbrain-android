@@ -50,7 +50,7 @@ jobs:
           disable-animations: true
           script: |
             gradle --no-daemon connectedDebugAndroidTest
-            adb pull /sdcard/Android/data/com.edward.whisperbrain/files/qa app/build/reports/notebook-screenshots
+            adb pull /sdcard/Download/whisperbrain-qa app/build/reports/notebook-screenshots
       - name: Save installable test APK
         uses: actions/upload-artifact@v4
         with:
