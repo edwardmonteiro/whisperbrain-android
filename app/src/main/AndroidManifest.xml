@@ -15,6 +15,7 @@
     </queries>
     <application android:label="WhisperBrain" android:icon="@drawable/ic_brain"
         android:theme="@style/AppTheme" android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false" android:usesCleartextTraffic="false"
         android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true"
