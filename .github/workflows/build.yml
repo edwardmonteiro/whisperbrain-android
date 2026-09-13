@@ -1,4 +1,4 @@
-name: Build WhisperBrain APK
+name: Build InsideVoice
 
 on:
   push:
@@ -8,10 +8,22 @@ permissions:
   contents: read
 
 concurrency:
-  group: whisperbrain-${{ github.ref }}
+  group: insidevoice-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package tracked source only
+        run: git archive --format=zip HEAD -o InsideVoice-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InsideVoice-source
+          path: InsideVoice-source.zip
+          retention-days: 14
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -34,12 +46,19 @@ jobs:
           java -cp build/policy-checks PolicyChecks
       - name: Compile, test, and lint
         run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+      - name: Save installable evaluation APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsideVoice-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Verify offline notebook on Android
+      - name: Verify on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
@@ -50,19 +69,12 @@ jobs:
           disable-animations: true
           script: |
             gradle --no-daemon connectedDebugAndroidTest
-            adb pull /sdcard/Download/whisperbrain-qa app/build/reports/notebook-screenshots
-      - name: Save installable test APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: WhisperBrain-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 30
+            adb pull /sdcard/Download/whisperbrain-qa app/build/reports/notebook-screenshots || true
       - name: Save validation reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: WhisperBrain-validation
+          name: InsideVoice-validation
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-debug.html
@@ -70,14 +82,3 @@ jobs:
             app/build/reports/notebook-screenshots/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Prepare APK signing utility
-        run: |
-          mkdir -p build/signing-tool
-          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" build/signing-tool/
-      - name: Save APK signing utility
-        uses: actions/upload-artifact@v4
-        with:
-          name: WhisperBrain-signing-tool
-          path: build/signing-tool/apksigner.jar
-          if-no-files-found: error
-          retention-days: 1
