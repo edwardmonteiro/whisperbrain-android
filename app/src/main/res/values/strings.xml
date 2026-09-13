@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">InsideVoice</string>
+    <string name="app_tagline">Your quiet second brain</string>
+    <string name="privacy_local">Local-first memory</string>
+    <string name="live_title">Live Copilot</string>
+    <string name="teleprompter_title">NEXT BEST MOVE</string>
+    <string name="teleprompter_waiting">I’ll surface one useful thought when it matters.</string>
+    <string name="mode_converse">Converse</string>
+    <string name="mode_understand">Understand</string>
+    <string name="mode_decide">Decide</string>
+    <string name="action_pin">Pin</string>
+    <string name="action_why">Why</string>
+    <string name="action_source">Source</string>
+    <string name="status_listening">Listening</string>
+    <string name="status_thinking">Thinking</string>
+    <string name="status_reconnecting">Reconnecting</string>
+    <string name="status_offline">Offline</string>
+</resources>
