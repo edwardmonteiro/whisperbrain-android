@@ -10,21 +10,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <queries>
-        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
-    </queries>
-    <application android:label="WhisperBrain" android:icon="@drawable/ic_brain"
+    <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>
+    <application android:label="Topo" android:icon="@drawable/ic_brain"
         android:theme="@style/AppTheme" android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false" android:usesCleartextTraffic="false"
         android:supportsRtl="true">
-        <activity android:name=".NotebookActivity" android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+        <activity android:name=".TopoActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".NotebookActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".MainActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".WhatsAppActivity" android:exported="false" />
         <activity android:name=".DailyMapActivity" android:exported="false" />
@@ -32,8 +30,9 @@
             android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
-        <service android:name=".BrainService" android:exported="false"
-            android:stopWithTask="true"
+        <service android:name=".BrainService" android:exported="false" android:stopWithTask="true"
             android:foregroundServiceType="microphone|mediaPlayback" />
+        <service android:name=".TopoService" android:exported="false" android:stopWithTask="false"
+            android:foregroundServiceType="microphone" />
     </application>
 </manifest>
