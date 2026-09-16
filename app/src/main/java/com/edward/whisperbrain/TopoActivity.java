@@ -64,14 +64,15 @@ public final class TopoActivity extends Activity {
 
         LinearLayout controls=card();Button settings=button("OpenAI settings",Color.rgb(38,43,52),INK);controls.addView(settings);settings.setOnClickListener(v->settings());
         Button refresh=button("Refresh library",Color.rgb(38,43,52),INK);controls.addView(refresh);refresh.setOnClickListener(v->loadLibrary());
-        controls.addView(text("Audio is sent to OpenAI while recording. Transcript and AI notes are encrypted locally. Get participant consent before recording.",13,MUTED,false));
+        controls.addView(text("Audio is always encrypted and recorded locally first. AI transcription and Live Coach run in parallel when connected.",13,MUTED,false));
+        controls.addView(text("Get participant consent before recording.",13,MUTED,false));
 
         root.addView(text("LIBRARY",12,ACCENT,true));library=new LinearLayout(this);library.setOrientation(LinearLayout.VERTICAL);root.addView(library);loadLibrary();setContentView(scroll);
     }
 
     private void start(boolean coachMode){
         if(TalkState.active){startService(new Intent(this,TopoService.class).setAction(TopoService.STOP));return;}
-        try{vault.put("topo_template",String.valueOf(template.getSelectedItem()));vault.put("save_transcript","true");vault.put("topo_realtime_model","gpt-realtime");vault.put("topo_text_model","gpt-5.6-sol");}
+        try{vault.put("topo_template",String.valueOf(template.getSelectedItem()));vault.put("save_transcript","true");vault.put("topo_realtime_model","gpt-realtime-2.1");vault.put("topo_text_model","gpt-5.6-sol");}
         catch(Exception e){toast("Could not save settings.");return;}
         pendingCoach=coachMode;if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},91);else begin();
     }
@@ -83,10 +84,11 @@ public final class TopoActivity extends Activity {
     }
 
     private void render(){
-        if(liveStatus==null)return;liveStatus.setText(TalkState.active?(TalkState.coachMode?"LIVE COACH · ":"RECORDING · ")+TalkState.status:"Ready");
+        if(liveStatus==null)return;
+        liveStatus.setText(TalkState.active?(TalkState.coachMode?"LIVE COACH · ":"RECORDING · ")+TalkState.status:"Ready");
         meter.setProgress(TalkState.level);record.setText(TalkState.active?"Stop":"Record conversation");record.setBackground(round(TalkState.active?RED:ACCENT,14));coach.setText(TalkState.active?"Stop":"Live Coach");ask.setEnabled(TalkState.active&&TalkState.connected&&!TalkState.requestInFlight);
         caption.setText(TalkState.tip.isEmpty()?(TalkState.coachMode&&TalkState.active?"Listening for a useful moment…":"Start Live Coach to see concise suggestions here."):TalkState.tip);
-        context.setText(TalkState.context);tail.setText(TalkState.transcriptTail);
+        context.setText(TalkState.active&&!TalkState.detail.isEmpty()?TalkState.detail:TalkState.context);tail.setText(TalkState.transcriptTail);
         if(TalkState.active){long s=(SystemClock.elapsedRealtime()-TalkState.started)/1000;timer.setText(String.format(Locale.US,"%02d:%02d:%02d",s/3600,(s/60)%60,s%60));}else timer.setText("00:00");
         if(!TalkState.active)loadLibrary();
     }
@@ -94,7 +96,7 @@ public final class TopoActivity extends Activity {
 
     private void loadLibrary(){
         if(library==null)return;library.removeAllViews();
-        try{JSONArray sessions=NotebookStore.get(this).sessions();int shown=0;for(int i=0;i<sessions.length()&&shown<8;i++){JSONObject s=sessions.getJSONObject(i);JSONArray nodes=NotebookStore.get(this).nodes(s.getString("id"));boolean hasTranscript=false;for(int j=0;j<nodes.length();j++)if("transcript".equals(nodes.getJSONObject(j).optString("kind"))){hasTranscript=true;break;}if(!hasTranscript)continue;shown++;
+        try{JSONArray sessions=NotebookStore.get(this).sessions();int shown=0;for(int i=0;i<sessions.length()&&shown<8;i++){JSONObject s=sessions.getJSONObject(i);JSONArray nodes=NotebookStore.get(this).nodes(s.getString("id"));boolean hasContent=false;for(int j=0;j<nodes.length();j++){String kind=nodes.getJSONObject(j).optString("kind");if("transcript".equals(kind)||"audio".equals(kind)){hasContent=true;break;}}if(!hasContent)continue;shown++;
                 LinearLayout c=card(library);c.addView(text(s.optString("event","Conversation"),18,INK,true));c.addView(text(nodes.length()+" items",13,MUTED,false));Button analyze=button("Analyze with "+String.valueOf(template.getSelectedItem()),Color.rgb(38,43,52),INK);c.addView(analyze);String id=s.getString("id");analyze.setOnClickListener(v->analyze(id,analyze));}
             if(shown==0)library.addView(text("Your recorded conversations will appear here.",15,MUTED,false));
         }catch(Exception e){library.addView(text("Library unavailable.",15,MUTED,false));}
@@ -104,8 +106,8 @@ public final class TopoActivity extends Activity {
     private void settings(){
         LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(20),dp(8),dp(20),0);
         body.addView(text("OpenAI API key",15,INK,true));EditText key=new EditText(this);key.setTextColor(INK);key.setHintTextColor(MUTED);key.setHint(read("api_key","").isEmpty()?"sk-…":"Key saved · leave blank to keep");key.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);body.addView(key);
-        body.addView(text("Realtime: gpt-realtime\nDeep analysis: gpt-5.6-sol",14,MUTED,false));
-        new AlertDialog.Builder(this).setTitle("Topo · OpenAI").setView(body).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{try{String value=key.getText().toString().trim();if(!value.isEmpty())vault.put("api_key",value);vault.put("topo_realtime_model","gpt-realtime");vault.put("topo_text_model","gpt-5.6-sol");toast("Saved locally.");}catch(Exception e){toast("Could not save.");}}).show();
+        body.addView(text("Realtime: gpt-realtime-2.1\nDeep analysis: gpt-5.6-sol",14,MUTED,false));
+        new AlertDialog.Builder(this).setTitle("Topo · OpenAI").setView(body).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{try{String value=key.getText().toString().trim();if(!value.isEmpty())vault.put("api_key",value);vault.put("topo_realtime_model","gpt-realtime-2.1");vault.put("topo_text_model","gpt-5.6-sol");toast("Saved locally.");}catch(Exception e){toast("Could not save.");}}).show();
     }
 
     private String read(String key,String fallback){try{return vault.get(key,fallback);}catch(Exception e){return fallback;}}
