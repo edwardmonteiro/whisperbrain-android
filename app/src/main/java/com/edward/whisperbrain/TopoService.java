@@ -31,7 +31,6 @@ public final class TopoService extends Service {
     public static final String EXTRA_SESSION="session";
     public static final String EXTRA_COACH="coach";
     private static final long SESSION_LIMIT_MS=180L*60_000L;
-    // PCM16 mono 24 kHz = 48 KB/s. 18 MB is about 6.25 minutes and stays below transcription upload limits.
     private static final long AUDIO_CHUNK_BYTES=18_000_000L;
 
     private final Handler main=new Handler(Looper.getMainLooper());
@@ -80,8 +79,6 @@ public final class TopoService extends Service {
             wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"Topo:recording");
             wake.acquire(SESSION_LIMIT_MS+60_000L);
             transcriptItems.clear();lastAdviceAt=0;lastSpeechStopAt=0;reconnectAttempts=0;
-
-            // Start the phone recorder first. API availability must never decide whether the conversation is captured.
             startCapture(id);
 
             Vault vault=new Vault(this);
@@ -101,9 +98,9 @@ public final class TopoService extends Service {
 
     private void connectAi(long id){
         if(stopping||!TalkState.active||apiKey.isEmpty())return;
-        RealtimeClient client=new RealtimeClient(new RealtimeClient.Listener(){
+        RealtimeClient next=new RealtimeClient(new RealtimeClient.Listener(){
             @Override public void configured(){post(id,()->{
-                if(api!=client)return;reconnectAttempts=0;TalkState.connected=true;TalkState.status="Recording";
+                if(api==null)return;reconnectAttempts=0;TalkState.connected=true;TalkState.status="Recording";
                 TalkState.detail=coach?"Saved locally · Live Coach connected":"Saved locally · live transcription connected";TalkState.changed();
             });}
             @Override public void speechStarted(){post(id,()->{TalkState.status="Recording";TalkState.detail="Speech detected · audio saved locally";TalkState.changed();});}
@@ -113,11 +110,11 @@ public final class TopoService extends Service {
             @Override public void transcript(String itemId,String text){post(id,()->saveTranscript(itemId,text));}
             @Override public void transcriptionFailed(){post(id,()->{TalkState.detail="One transcript segment failed; local audio is still recording.";TalkState.changed();});}
             @Override public void answer(String json,long tokens){post(id,()->handleAdvice(json));}
-            @Override public void failed(String message){post(id,()->aiFailed(client,message,id));}
+            @Override public void failed(String message){post(id,()->{RealtimeClient failed=api;if(failed!=null)aiFailed(failed,message,id);});}
         });
-        api=client;TalkState.status="Recording locally";TalkState.detail="Connecting AI while local recording continues";TalkState.changed();
-        try{client.connect(apiKey,model,goal,new JSONArray().toString(),"pt-BR",true);}
-        catch(Exception e){aiFailed(client,"Could not open the AI connection.",id);}
+        api=next;TalkState.status="Recording locally";TalkState.detail="Connecting AI while local recording continues";TalkState.changed();
+        try{next.connect(apiKey,model,goal,new JSONArray().toString(),"pt-BR",true);}
+        catch(Exception e){aiFailed(next,"Could not open the AI connection.",id);}
     }
 
     private void aiFailed(RealtimeClient failed,String message,long id){
@@ -139,7 +136,7 @@ public final class TopoService extends Service {
         try{
             int min=AudioRecord.getMinBufferSize(24000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
             if(min<=0){finish("24 kHz microphone input is unavailable.");return;}
-            first=new AudioArchive.Writer(this); // prove local encrypted storage works before recording starts
+            first=new AudioArchive.Writer(this);
             AudioRecord r=new AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
                     .setAudioFormat(new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(24000).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build())
                     .setBufferSizeInBytes(Math.max(min*2,9600)).build();
@@ -162,7 +159,7 @@ public final class TopoService extends Service {
                 double sum=0;for(int i=0;i+1<n;i+=2){short s=(short)((pcm[i]&255)|(pcm[i+1]<<8));sum+=(double)s*s;}
                 double rms=Math.sqrt(sum/Math.max(1,n/2))/32768.0;double db=20*Math.log10(Math.max(.000001,rms));level=Math.max(0,Math.min(100,(int)((db+60)*100/60)));
                 RealtimeClient current=api;
-                if(current!=null&&TalkState.connected)current.audio(pcm,n); // failure degrades AI only; never breaks local capture
+                if(current!=null&&TalkState.connected)current.audio(pcm,n);
             }
         }catch(Exception e){post(id,()->finish("Local recording storage failed. Check free phone storage."));}
         finally{
