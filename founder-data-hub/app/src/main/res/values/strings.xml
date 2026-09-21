@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">LifeGraph Founder</string>
+    <string name="capture_channel_name">Local capture</string>
+    <string name="capture_channel_description">Visible status for local behavioral capture</string>
+</resources>
