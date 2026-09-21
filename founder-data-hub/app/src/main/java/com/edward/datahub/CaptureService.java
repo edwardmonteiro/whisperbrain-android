@@ -5,13 +5,13 @@ import android.app.usage.*;
 import android.content.*;
 import android.net.*;
 import android.os.*;
-import java.util.*;
 
 public class CaptureService extends Service {
     private static final String CH="local_capture";
     private final Handler handler=new Handler(Looper.getMainLooper());
     private EventDb db;
     private String lastPackage="";
+    private long lastPackageStart=0;
     private long lastContext=0;
 
     private final Runnable loop=new Runnable(){
@@ -55,8 +55,13 @@ public class CaptureService extends Service {
             }
         }
         if(newest!=null && !newest.equals(getPackageName()) && !newest.equals(lastPackage)){
+            if(!lastPackage.isEmpty() && lastPackageStart>0){
+                long duration=Math.max(1,(now-lastPackageStart)/1000);
+                db.add("app_session",lastPackage,"duration_seconds="+duration);
+            }
             db.add("app_foreground",newest,"foreground transition");
             lastPackage=newest;
+            lastPackageStart=now;
         }
     }
 
@@ -64,8 +69,7 @@ public class CaptureService extends Service {
         long now=System.currentTimeMillis();
         if(now-lastContext<5*60*1000L)return;
         lastContext=now;
-        IntentFilter f=new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        Intent i=registerReceiver(null,f);
+        Intent i=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         int level=i==null?-1:i.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
         int scale=i==null?-1:i.getIntExtra(BatteryManager.EXTRA_SCALE,-1);
         int status=i==null?-1:i.getIntExtra(BatteryManager.EXTRA_STATUS,-1);
@@ -87,6 +91,13 @@ public class CaptureService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){ return START_STICKY; }
-    @Override public void onDestroy(){ handler.removeCallbacks(loop); super.onDestroy(); }
+    @Override public void onDestroy(){
+        handler.removeCallbacks(loop);
+        if(!lastPackage.isEmpty() && lastPackageStart>0){
+            long duration=Math.max(1,(System.currentTimeMillis()-lastPackageStart)/1000);
+            db.add("app_session",lastPackage,"duration_seconds="+duration);
+        }
+        super.onDestroy();
+    }
     @Override public android.os.IBinder onBind(Intent intent){ return null; }
 }
