@@ -110,8 +110,8 @@ public class EventDb extends SQLiteOpenHelper {
             while(c.moveToNext()){
                 for(int i=0;i<8;i++){
                     String s=c.isNull(i)?"":c.getString(i);
-                    s=s.replace(""","""");
-                    b.append(""").append(s).append(""");
+                    s=s.replace("\"", "\"\"");
+                    b.append("\"").append(s).append("\"");
                     if(i<7)b.append(",");
                 }
                 b.append("\n");
