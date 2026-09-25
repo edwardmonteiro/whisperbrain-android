@@ -1,0 +1,50 @@
+name: LifeGraph V2 APK
+
+on:
+  push:
+    branches: [ lifegraph-v2 ]
+    paths:
+      - 'founder-data-hub/**'
+      - '.github/workflows/lifegraph-v2-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Acceptance unit tests
+        working-directory: founder-data-hub
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Build V2 debug APK
+        working-directory: founder-data-hub
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeGraph-V2-debug
+          path: founder-data-hub/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeGraph-V2-test-reports
+          path: founder-data-hub/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
