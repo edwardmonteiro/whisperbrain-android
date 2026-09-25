@@ -5,31 +5,75 @@ import android.app.usage.*;
 import android.content.*;
 import android.net.*;
 import android.os.*;
+import java.util.*;
 
 public class CaptureService extends Service {
     private static final String CH="local_capture";
+    private static final long ACTIVE_POLL_MS=10000L;
+    private static final long CONTEXT_INTERVAL_MS=5*60*1000L;
+
     private final Handler handler=new Handler(Looper.getMainLooper());
     private EventDb db;
-    private String lastPackage="";
-    private long lastPackageStart=0;
+    private SessionTracker tracker;
+    private long usageCursor=0;
     private long lastContext=0;
+
+    private final BroadcastReceiver stateReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            long ts=System.currentTimeMillis();
+            String action=intent.getAction();
+            if(Intent.ACTION_SCREEN_ON.equals(action)){
+                tracker.onScreenOn(ts);
+                scheduleNow();
+            } else if(Intent.ACTION_USER_PRESENT.equals(action)){
+                tracker.onUserPresent(ts);
+                scheduleNow();
+            } else if(Intent.ACTION_SCREEN_OFF.equals(action)){
+                tracker.onLocked(ts);
+                tracker.onScreenOff(ts);
+                DailyAggregator.recompute(db,ts);
+            }
+        }
+    };
 
     private final Runnable loop=new Runnable(){
         @Override public void run(){
-            try { pollUsage(); pollContext(); }
-            catch(Exception ignored) {}
-            handler.postDelayed(this,15000);
+            try {
+                if(tracker.isScreenOn() && tracker.isUnlocked()) pollUsage();
+                pollContext();
+            } catch(Exception e) {
+                db.add("COLLECTOR_ERROR","capture",e.getClass().getSimpleName(),"system",tracker.isScreenOn());
+            }
+            handler.postDelayed(this,tracker.isScreenOn()?ACTIVE_POLL_MS:60000L);
         }
     };
 
     @Override public void onCreate(){
         super.onCreate();
         db=new EventDb(this);
+        tracker=new SessionTracker(this,db);
+
+        PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
+        KeyguardManager km=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
+        boolean screen=pm!=null && pm.isInteractive();
+        boolean unlocked=km==null || !km.isDeviceLocked();
+        tracker.restore(screen,screen&&unlocked);
+
+        IntentFilter filter=new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        registerReceiver(stateReceiver,filter);
+
+        usageCursor=System.currentTimeMillis()-30000L;
         createChannel();
+        Intent open=new Intent(this,MainActivity.class);
+        PendingIntent pi=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n=new Notification.Builder(this,CH)
-                .setContentTitle("LifeGraph capture is ON")
-                .setContentText("Local only · no message bodies · tap app to review")
+                .setContentTitle("LifeGraph · capture active")
+                .setContentText("Local only · reconstructing human screen activity")
                 .setSmallIcon(android.R.drawable.ic_menu_recent_history)
+                .setContentIntent(pi)
                 .setOngoing(true).build();
         startForeground(1001,n);
         handler.post(loop);
@@ -44,31 +88,31 @@ public class CaptureService extends Service {
         UsageStatsManager usm=(UsageStatsManager)getSystemService(USAGE_STATS_SERVICE);
         if(usm==null)return;
         long now=System.currentTimeMillis();
-        UsageEvents events=usm.queryEvents(now-30000,now);
+        long from=Math.max(usageCursor-1000,now-2*60*1000L);
+        UsageEvents events=usm.queryEvents(from,now);
         UsageEvents.Event e=new UsageEvents.Event();
-        String newest=null;
-        long newestTs=0;
+        ArrayList<UsagePoint> points=new ArrayList<>();
         while(events.hasNextEvent()){
             events.getNextEvent(e);
-            if(e.getEventType()==UsageEvents.Event.ACTIVITY_RESUMED && e.getTimeStamp()>newestTs){
-                newest=e.getPackageName(); newestTs=e.getTimeStamp();
+            if(e.getTimeStamp()<=usageCursor) continue;
+            int type=e.getEventType();
+            if(type==UsageEvents.Event.ACTIVITY_RESUMED){
+                points.add(new UsagePoint(e.getTimeStamp(),e.getPackageName()));
             }
         }
-        if(newest!=null && !newest.equals(getPackageName()) && !newest.equals(lastPackage)){
-            if(!lastPackage.isEmpty() && lastPackageStart>0){
-                long duration=Math.max(1,(now-lastPackageStart)/1000);
-                db.add("app_session",lastPackage,"duration_seconds="+duration);
-            }
-            db.add("app_foreground",newest,"foreground transition");
-            lastPackage=newest;
-            lastPackageStart=now;
+        Collections.sort(points,(a,b)->Long.compare(a.ts,b.ts));
+        for(UsagePoint p:points){
+            if(p.pkg==null || p.pkg.equals(getPackageName())) continue;
+            tracker.onForeground(p.pkg,p.ts);
         }
+        usageCursor=now;
     }
 
     private void pollContext(){
         long now=System.currentTimeMillis();
-        if(now-lastContext<5*60*1000L)return;
+        if(now-lastContext<CONTEXT_INTERVAL_MS)return;
         lastContext=now;
+
         Intent i=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         int level=i==null?-1:i.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
         int scale=i==null?-1:i.getIntExtra(BatteryManager.EXTRA_SCALE,-1);
@@ -87,17 +131,29 @@ public class CaptureService extends Service {
                 else network="other";
             }
         }
-        db.add("device_context","android","battery="+pct+";charging="+charging+";network="+network);
+        db.add("DEVICE_CONTEXT","android","battery="+pct+";charging="+charging+";network="+network,
+                "system",tracker.isScreenOn());
+    }
+
+    private void scheduleNow(){
+        handler.removeCallbacks(loop);
+        handler.post(loop);
     }
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){ return START_STICKY; }
+
     @Override public void onDestroy(){
         handler.removeCallbacks(loop);
-        if(!lastPackage.isEmpty() && lastPackageStart>0){
-            long duration=Math.max(1,(System.currentTimeMillis()-lastPackageStart)/1000);
-            db.add("app_session",lastPackage,"duration_seconds="+duration);
-        }
+        try{ unregisterReceiver(stateReceiver); }catch(Exception ignored){}
+        if(tracker!=null) tracker.stop(System.currentTimeMillis());
+        if(db!=null) DailyAggregator.recompute(db,System.currentTimeMillis());
         super.onDestroy();
     }
+
     @Override public android.os.IBinder onBind(Intent intent){ return null; }
+
+    private static final class UsagePoint {
+        final long ts; final String pkg;
+        UsagePoint(long t,String p){ts=t;pkg=p;}
+    }
 }
