@@ -3,7 +3,7 @@ package com.edward.datahub;
 import android.app.*;
 import android.app.usage.*;
 import android.content.*;
-import android.graphics.Color;
+import android.graphics.Color;\nimport android.database.Cursor;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
