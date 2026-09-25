@@ -365,8 +365,8 @@ public class EventDb extends SQLiteOpenHelper {
 
     private static void csvRow(StringBuilder b,String[] cells) {
         for(int i=0;i<cells.length;i++) {
-            String s=cells[i]==null?"":cells[i].replace(""","""");
-            b.append(""").append(s).append("""); if(i<cells.length-1)b.append(",");
+            String s=cells[i]==null?"":cells[i].replace("\"", "\"\"");
+            b.append("\"").append(s).append("\""); if(i<cells.length-1)b.append(",");
         }
         b.append("\n");
     }
