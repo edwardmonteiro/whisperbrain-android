@@ -9,7 +9,7 @@ import java.util.*;
 
 public class EventDb extends SQLiteOpenHelper {
     public static final String DB_NAME = "lifegraph.db";
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
 
     public EventDb(Context c) { super(c, DB_NAME, null, VERSION); }
 
@@ -21,6 +21,7 @@ public class EventDb extends SQLiteOpenHelper {
     @Override public void onCreate(SQLiteDatabase db) {
         createV1(db);
         createV2(db);
+        createV3(db);
     }
 
     private void createV1(SQLiteDatabase db) {
@@ -100,11 +101,34 @@ public class EventDb extends SQLiteOpenHelper {
                 "PRIMARY KEY(date_key,package_name))");
     }
 
+    private void createV3(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS human_episodes (" +
+                "episode_id TEXT PRIMARY KEY," +
+                "phone_session_id TEXT," +
+                "start_ts INTEGER NOT NULL," +
+                "end_ts INTEGER NOT NULL," +
+                "duration_seconds INTEGER NOT NULL," +
+                "sequence_json TEXT NOT NULL," +
+                "intent TEXT," +
+                "outcome TEXT," +
+                "satisfaction INTEGER NOT NULL DEFAULT 0," +
+                "human_confidence REAL NOT NULL DEFAULT 0," +
+                "quality_score INTEGER NOT NULL DEFAULT 0," +
+                "training_readiness TEXT NOT NULL DEFAULT 'Needs context'," +
+                "consent_scope TEXT NOT NULL DEFAULT 'not_licensed'," +
+                "created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_human_episodes_start ON human_episodes(start_ts)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_human_episodes_phone ON human_episodes(phone_session_id)");
+    }
+
     @Override public void onUpgrade(SQLiteDatabase db, int oldV, int newV) {
         if (oldV < 2) {
             addColumnIfMissing(db,"events","activity_origin","TEXT DEFAULT 'unknown'");
             addColumnIfMissing(db,"events","screen_active","INTEGER DEFAULT -1");
             createV2(db);
+        }
+        if (oldV < 3) {
+            createV3(db);
         }
     }
 
@@ -264,7 +288,7 @@ public class EventDb extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             db.delete("events",null,null); db.delete("app_sessions",null,null); db.delete("phone_sessions",null,null);
-            db.delete("daily_summary",null,null); db.delete("daily_app_summary",null,null);
+            db.delete("daily_summary",null,null); db.delete("daily_app_summary",null,null); db.delete("human_episodes",null,null);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -315,9 +339,10 @@ public class EventDb extends SQLiteOpenHelper {
 
     public synchronized JSONObject fullExportJson() throws JSONException {
         JSONObject root=new JSONObject();
-        root.put("schema_version",2); root.put("generated_at",iso(System.currentTimeMillis()));
+        root.put("schema_version",3); root.put("generated_at",iso(System.currentTimeMillis()));
         root.put("privacy","local-first; metadata only; no message content, typed text, passwords, or screen content");
         root.put("events",eventsJson()); root.put("app_sessions",appSessionsJson()); root.put("phone_sessions",phoneSessionsJson());
+        root.put("human_episodes",humanEpisodesJson());
         return root;
     }
 
@@ -358,6 +383,86 @@ public class EventDb extends SQLiteOpenHelper {
             while(c.moveToNext()) {
                 String first=c.isNull(9)?"":iso(c.getLong(9)), last=c.isNull(10)?"":iso(c.getLong(10));
                 csvRow(b,new String[]{c.getString(0),c.getString(1),c.getString(2),c.getString(3),c.getString(4),c.getString(5),c.getString(6),c.getString(7),c.getString(8),first,last,c.getString(11),c.getString(12),c.getString(13),c.getString(14)});
+            }
+        } finally { c.close(); }
+        return b.toString();
+    }
+
+
+    public synchronized Cursor latestPhoneSessionForEpisode() {
+        return getReadableDatabase().rawQuery(
+                "SELECT p.phone_session_id,p.start_ts,p.end_ts,p.duration_seconds,p.unlock_triggered,p.apps_used,p.context_switches " +
+                "FROM phone_sessions p LEFT JOIN human_episodes h ON h.phone_session_id=p.phone_session_id " +
+                "WHERE h.episode_id IS NULL AND p.duration_seconds>=60 ORDER BY p.end_ts DESC LIMIT 1",null);
+    }
+
+    public synchronized Cursor appSessionsForWindow(long start,long end) {
+        return getReadableDatabase().rawQuery(
+                "SELECT session_id,start_ts,end_ts,duration_seconds,package_name,app_name,screen_active,interaction_type,category " +
+                "FROM app_sessions WHERE start_ts>=? AND end_ts<=? AND interaction_type='human' ORDER BY start_ts ASC",
+                new String[]{String.valueOf(start),String.valueOf(end)});
+    }
+
+    public synchronized void saveHumanEpisode(String episodeId,String phoneSessionId,long start,long end,
+                                              String sequenceJson,String intent,String outcome,int satisfaction,
+                                              double humanConfidence,int qualityScore,String readiness,String consentScope) {
+        ContentValues v=new ContentValues();
+        v.put("episode_id",episodeId); v.put("phone_session_id",phoneSessionId);
+        v.put("start_ts",start); v.put("end_ts",end); v.put("duration_seconds",Math.max(1,(end-start)/1000));
+        v.put("sequence_json",sequenceJson); v.put("intent",intent); v.put("outcome",outcome);
+        v.put("satisfaction",satisfaction); v.put("human_confidence",humanConfidence);
+        v.put("quality_score",qualityScore); v.put("training_readiness",readiness);
+        v.put("consent_scope",consentScope==null?"not_licensed":consentScope);
+        v.put("created_at",System.currentTimeMillis());
+        getWritableDatabase().insertWithOnConflict("human_episodes",null,v,SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    public synchronized void updateEpisodeConsent(String episodeId,String consentScope) {
+        ContentValues v=new ContentValues(); v.put("consent_scope",consentScope);
+        getWritableDatabase().update("human_episodes",v,"episode_id=?",new String[]{episodeId});
+    }
+
+    public synchronized int countHumanEpisodesToday() {
+        Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM human_episodes WHERE start_ts>=?",
+                new String[]{String.valueOf(DayBounds.startOfToday())});
+        try { return c.moveToFirst()?c.getInt(0):0; } finally { c.close(); }
+    }
+
+    public synchronized int countTrainingReadyEpisodes() {
+        Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM human_episodes WHERE training_readiness='Ready'",null);
+        try { return c.moveToFirst()?c.getInt(0):0; } finally { c.close(); }
+    }
+
+    public synchronized JSONArray humanEpisodesJson() throws JSONException {
+        JSONArray arr=new JSONArray();
+        Cursor c=getReadableDatabase().rawQuery(
+                "SELECT episode_id,phone_session_id,start_ts,end_ts,duration_seconds,sequence_json,intent,outcome,satisfaction,human_confidence,quality_score,training_readiness,consent_scope,created_at FROM human_episodes ORDER BY start_ts",null);
+        try {
+            while(c.moveToNext()) {
+                JSONObject o=new JSONObject();
+                o.put("episode_id",c.getString(0)); o.put("phone_session_id",c.getString(1));
+                o.put("start_time",iso(c.getLong(2))); o.put("end_time",iso(c.getLong(3)));
+                o.put("duration_seconds",c.getLong(4)); o.put("sequence",new JSONArray(c.getString(5)));
+                o.put("intent",c.isNull(6)?JSONObject.NULL:c.getString(6));
+                o.put("outcome",c.isNull(7)?JSONObject.NULL:c.getString(7));
+                o.put("satisfaction",c.getInt(8)); o.put("human_confidence",c.getDouble(9));
+                o.put("quality_score",c.getInt(10)); o.put("training_readiness",c.getString(11));
+                o.put("consent_scope",c.getString(12)); o.put("created_at",iso(c.getLong(13)));
+                arr.put(o);
+            }
+        } finally { c.close(); }
+        return arr;
+    }
+
+    public synchronized String humanEpisodesCsv() {
+        StringBuilder b=new StringBuilder("episode_id,phone_session_id,start_time,end_time,duration_seconds,sequence_json,intent,outcome,satisfaction,human_confidence,quality_score,training_readiness,consent_scope\n");
+        Cursor c=getReadableDatabase().rawQuery(
+                "SELECT episode_id,phone_session_id,start_ts,end_ts,duration_seconds,sequence_json,intent,outcome,satisfaction,human_confidence,quality_score,training_readiness,consent_scope FROM human_episodes ORDER BY start_ts",null);
+        try {
+            while(c.moveToNext()) {
+                csvRow(b,new String[]{c.getString(0),c.getString(1),iso(c.getLong(2)),iso(c.getLong(3)),c.getString(4),
+                        c.getString(5),c.isNull(6)?"":c.getString(6),c.isNull(7)?"":c.getString(7),c.getString(8),
+                        c.getString(9),c.getString(10),c.getString(11),c.getString(12)});
             }
         } finally { c.close(); }
         return b.toString();
