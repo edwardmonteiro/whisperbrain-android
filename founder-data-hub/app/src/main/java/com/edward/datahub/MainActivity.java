@@ -71,12 +71,22 @@ public class MainActivity extends Activity {
         summary=text("",15,Color.WHITE,false); summary.setLineSpacing(0,1.25f); root.addView(summary);
 
         space(28);
+        section("TRAINING DATA");
+        TextView lab=card("Turn phone sessions into permissioned AI training trajectories.");
+        root.addView(lab);
+        Button labButton=button("Open Training Data Lab");
+        labButton.setOnClickListener(v->startActivity(new Intent(this,TrainingDataLabActivity.class)));
+        root.addView(labButton);
+        TextView episodeCount=text(db.countHumanEpisodesToday()+" Human Episodes today · "+db.countTrainingReadyEpisodes()+" training-ready",11,MUTED,false);
+        root.addView(episodeCount);
+
+        space(28);
         section("CONTROL");
         Button toggle=button("Start / stop local capture"); toggle.setOnClickListener(v->toggleCapture()); root.addView(toggle);
         Button usage=button("Grant Usage Access"); usage.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))); root.addView(usage);
         Button notif=button("Enable notification metadata"); notif.setOnClickListener(v->startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))); root.addView(notif);
         Button monitor=button("Developer · Activity Monitor"); monitor.setOnClickListener(v->startActivity(new Intent(this,ActivityMonitorActivity.class))); root.addView(monitor);
-        Button export=button("Export LifeGraph V2"); export.setOnClickListener(v->exportAll()); root.addView(export);
+        Button export=button("Export LifeGraph V2.1"); export.setOnClickListener(v->exportAll()); root.addView(export);
         Button delete=button("Delete all local activity data"); delete.setOnClickListener(v->confirmDelete()); root.addView(delete);
 
         setContentView(sv);
@@ -222,11 +232,12 @@ public class MainActivity extends Activity {
             write(dir,"app_sessions.csv",db.appSessionsCsv(),uris);
             write(dir,"phone_sessions.csv",db.phoneSessionsCsv(),uris);
             write(dir,"daily_summary.csv",db.dailySummaryCsv(),uris);
+            write(dir,"human_episodes.csv",db.humanEpisodesCsv(),uris);
             write(dir,"lifegraph_export.json",db.fullExportJson().toString(2),uris);
             Intent share=new Intent(Intent.ACTION_SEND_MULTIPLE);
             share.setType("*/*"); share.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
             share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(share,"Export LifeGraph V2"));
+            startActivity(Intent.createChooser(share,"Export LifeGraph V2.1"));
         }catch(Exception e){Toast.makeText(this,"Export failed: "+e.getMessage(),Toast.LENGTH_LONG).show();}
     }
 
