@@ -20,3 +20,7 @@ Private Android experiment for collecting owner-consented behavioral signals loc
 All event records stay in the app's local SQLite database until the owner exports or deletes them.
 
 The debug APK is produced by the `Founder Data Hub APK` GitHub Actions workflow.
+
+
+## V2.1 Training Data Lab
+Adds isolated synthetic demo flows and local Human Episode creation from real phone sessions.
