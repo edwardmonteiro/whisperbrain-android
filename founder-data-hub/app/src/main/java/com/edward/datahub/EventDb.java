@@ -9,7 +9,7 @@ import java.util.*;
 
 public class EventDb extends SQLiteOpenHelper {
     public static final String DB_NAME = "lifegraph.db";
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
 
     public EventDb(Context c) { super(c, DB_NAME, null, VERSION); }
 
@@ -22,6 +22,7 @@ public class EventDb extends SQLiteOpenHelper {
         createV1(db);
         createV2(db);
         createV3(db);
+        createV4(db);
     }
 
     private void createV1(SQLiteDatabase db) {
@@ -121,6 +122,47 @@ public class EventDb extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_human_episodes_phone ON human_episodes(phone_session_id)");
     }
 
+
+    private void createV4(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS inferred_episodes (" +
+                "episode_id TEXT PRIMARY KEY," +
+                "start_ts INTEGER NOT NULL," +
+                "end_ts INTEGER NOT NULL," +
+                "duration_seconds INTEGER NOT NULL," +
+                "type TEXT NOT NULL," +
+                "subtype TEXT," +
+                "title TEXT NOT NULL," +
+                "description TEXT," +
+                "primary_app TEXT," +
+                "related_apps TEXT," +
+                "confidence REAL NOT NULL," +
+                "confidence_label TEXT," +
+                "evidence_count INTEGER NOT NULL," +
+                "screen_active_ratio REAL NOT NULL," +
+                "human_probability REAL NOT NULL," +
+                "inference_version TEXT NOT NULL," +
+                "user_feedback TEXT DEFAULT ''," +
+                "user_correction TEXT DEFAULT '')");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_inferred_episodes_start ON inferred_episodes(start_ts)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS episode_evidence (" +
+                "episode_id TEXT NOT NULL," +
+                "event_id INTEGER NOT NULL," +
+                "timestamp INTEGER NOT NULL," +
+                "source TEXT," +
+                "event_type TEXT," +
+                "detail TEXT," +
+                "PRIMARY KEY(episode_id,event_id))");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS semantic_memory (" +
+                "memory_id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "episode_type TEXT NOT NULL," +
+                "original_title TEXT," +
+                "corrected_title TEXT," +
+                "feedback TEXT," +
+                "created_at INTEGER NOT NULL)");
+    }
+
     @Override public void onUpgrade(SQLiteDatabase db, int oldV, int newV) {
         if (oldV < 2) {
             addColumnIfMissing(db,"events","activity_origin","TEXT DEFAULT 'unknown'");
@@ -129,6 +171,9 @@ public class EventDb extends SQLiteOpenHelper {
         }
         if (oldV < 3) {
             createV3(db);
+        }
+        if (oldV < 4) {
+            createV4(db);
         }
     }
 
@@ -288,7 +333,7 @@ public class EventDb extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             db.delete("events",null,null); db.delete("app_sessions",null,null); db.delete("phone_sessions",null,null);
-            db.delete("daily_summary",null,null); db.delete("daily_app_summary",null,null); db.delete("human_episodes",null,null);
+            db.delete("daily_summary",null,null); db.delete("daily_app_summary",null,null); db.delete("human_episodes",null,null); db.delete("inferred_episodes",null,null); db.delete("episode_evidence",null,null); db.delete("semantic_memory",null,null);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -342,7 +387,7 @@ public class EventDb extends SQLiteOpenHelper {
         root.put("schema_version",3); root.put("generated_at",iso(System.currentTimeMillis()));
         root.put("privacy","local-first; metadata only; no message content, typed text, passwords, or screen content");
         root.put("events",eventsJson()); root.put("app_sessions",appSessionsJson()); root.put("phone_sessions",phoneSessionsJson());
-        root.put("human_episodes",humanEpisodesJson());
+        root.put("human_episodes",humanEpisodesJson()); root.put("inferred_human_events",inferredEpisodesJson());
         return root;
     }
 
@@ -466,6 +511,124 @@ public class EventDb extends SQLiteOpenHelper {
             }
         } finally { c.close(); }
         return b.toString();
+    }
+
+
+    public synchronized ArrayList<RawEvent> rawEventsBetween(long start,long end) {
+        ArrayList<RawEvent> out=new ArrayList<>();
+        Cursor c=eventsBetween(start,end);
+        try{
+            while(c.moveToNext()){
+                out.add(new RawEvent(
+                        c.getLong(0),c.getLong(1),c.getString(2),c.getString(3),c.getString(4),
+                        c.getInt(10)==1,c.getString(9)));
+            }
+        }finally{c.close();}
+        return out;
+    }
+
+    public synchronized void replaceInferredEpisodes(List<InferredEpisode> episodes,long start,long end){
+        SQLiteDatabase db=getWritableDatabase();
+        db.beginTransaction();
+        try{
+            Cursor old=db.rawQuery("SELECT episode_id FROM inferred_episodes WHERE start_ts>=? AND start_ts<?",
+                    new String[]{String.valueOf(start),String.valueOf(end)});
+            ArrayList<String> ids=new ArrayList<>();
+            try{while(old.moveToNext())ids.add(old.getString(0));}finally{old.close();}
+            for(String id:ids)db.delete("episode_evidence","episode_id=?",new String[]{id});
+            db.delete("inferred_episodes","start_ts>=? AND start_ts<?",new String[]{String.valueOf(start),String.valueOf(end)});
+
+            for(InferredEpisode e:episodes){
+                ContentValues v=new ContentValues();
+                v.put("episode_id",e.id);v.put("start_ts",e.startTs);v.put("end_ts",e.endTs);
+                v.put("duration_seconds",e.durationSeconds());v.put("type",e.type);v.put("subtype",e.subtype);
+                v.put("title",e.title);v.put("description",e.description);v.put("primary_app",e.primaryApp);
+                v.put("related_apps",android.text.TextUtils.join("|",e.relatedApps));
+                v.put("confidence",e.confidence);v.put("confidence_label",e.confidenceLabel);
+                v.put("evidence_count",e.evidenceCount);v.put("screen_active_ratio",e.screenActiveRatio);
+                v.put("human_probability",e.humanProbability);v.put("inference_version",e.inferenceVersion);
+                v.put("user_feedback",e.userFeedback);v.put("user_correction",e.userCorrection);
+                db.insertWithOnConflict("inferred_episodes",null,v,SQLiteDatabase.CONFLICT_REPLACE);
+
+                for(Long eventId:e.rawEventIds){
+                    Cursor rc=db.rawQuery("SELECT ts,source,type,detail FROM events WHERE id=?",new String[]{String.valueOf(eventId)});
+                    try{
+                        if(rc.moveToFirst()){
+                            ContentValues ev=new ContentValues();
+                            ev.put("episode_id",e.id);ev.put("event_id",eventId);ev.put("timestamp",rc.getLong(0));
+                            ev.put("source",rc.getString(1));ev.put("event_type",rc.getString(2));ev.put("detail",rc.getString(3));
+                            db.insertWithOnConflict("episode_evidence",null,ev,SQLiteDatabase.CONFLICT_REPLACE);
+                        }
+                    }finally{rc.close();}
+                }
+            }
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
+    }
+
+    public synchronized Cursor inferredEpisodesBetween(long start,long end){
+        return getReadableDatabase().rawQuery(
+                "SELECT episode_id,start_ts,end_ts,duration_seconds,type,subtype,title,description,primary_app,related_apps,confidence,confidence_label,evidence_count,screen_active_ratio,human_probability,inference_version,user_feedback,user_correction " +
+                "FROM inferred_episodes WHERE start_ts>=? AND start_ts<? ORDER BY start_ts",
+                new String[]{String.valueOf(start),String.valueOf(end)});
+    }
+
+    public synchronized Cursor episodeEvidence(String episodeId){
+        return getReadableDatabase().rawQuery(
+                "SELECT event_id,timestamp,source,event_type,detail FROM episode_evidence WHERE episode_id=? ORDER BY timestamp",
+                new String[]{episodeId});
+    }
+
+    public synchronized void saveEpisodeFeedback(String episodeId,String feedback,String correction,String episodeType,String originalTitle){
+        ContentValues v=new ContentValues();v.put("user_feedback",feedback);v.put("user_correction",correction);
+        getWritableDatabase().update("inferred_episodes",v,"episode_id=?",new String[]{episodeId});
+        ContentValues m=new ContentValues();m.put("episode_type",episodeType);m.put("original_title",originalTitle);
+        m.put("corrected_title",correction);m.put("feedback",feedback);m.put("created_at",System.currentTimeMillis());
+        getWritableDatabase().insert("semantic_memory",null,m);
+    }
+
+    public synchronized String inferredEpisodesCsv(){
+        StringBuilder b=new StringBuilder("episode_id,start_time,end_time,duration_seconds,episode_type,subtype,title,primary_app,confidence,confidence_label,evidence_count,screen_active_ratio,human_probability,inference_version,user_feedback,user_correction\n");
+        Cursor c=getReadableDatabase().rawQuery(
+                "SELECT episode_id,start_ts,end_ts,duration_seconds,type,subtype,title,primary_app,confidence,confidence_label,evidence_count,screen_active_ratio,human_probability,inference_version,user_feedback,user_correction FROM inferred_episodes ORDER BY start_ts",null);
+        try{
+            while(c.moveToNext()){
+                csvRow(b,new String[]{c.getString(0),iso(c.getLong(1)),iso(c.getLong(2)),c.getString(3),c.getString(4),c.getString(5),
+                        c.getString(6),c.getString(7),c.getString(8),c.getString(9),c.getString(10),c.getString(11),c.getString(12),c.getString(13),c.getString(14),c.getString(15)});
+            }
+        }finally{c.close();}
+        return b.toString();
+    }
+
+    public synchronized String episodeEvidenceCsv(){
+        StringBuilder b=new StringBuilder("episode_id,event_id,timestamp,source,event_type,detail\n");
+        Cursor c=getReadableDatabase().rawQuery("SELECT episode_id,event_id,timestamp,source,event_type,detail FROM episode_evidence ORDER BY timestamp",null);
+        try{
+            while(c.moveToNext())csvRow(b,new String[]{c.getString(0),c.getString(1),iso(c.getLong(2)),c.getString(3),c.getString(4),c.getString(5)});
+        }finally{c.close();}
+        return b.toString();
+    }
+
+    public synchronized JSONArray inferredEpisodesJson() throws JSONException{
+        JSONArray a=new JSONArray();
+        Cursor c=getReadableDatabase().rawQuery(
+                "SELECT episode_id,start_ts,end_ts,duration_seconds,type,subtype,title,description,primary_app,related_apps,confidence,confidence_label,evidence_count,screen_active_ratio,human_probability,inference_version,user_feedback,user_correction FROM inferred_episodes ORDER BY start_ts",null);
+        try{
+            while(c.moveToNext()){
+                JSONObject o=new JSONObject();
+                o.put("id",c.getString(0));o.put("start_time",iso(c.getLong(1)));o.put("end_time",iso(c.getLong(2)));
+                o.put("duration_seconds",c.getLong(3));o.put("type",c.getString(4));o.put("subtype",c.getString(5));
+                o.put("title",c.getString(6));o.put("description",c.getString(7));o.put("primary_app",c.getString(8));
+                o.put("related_apps",c.getString(9));o.put("confidence",c.getDouble(10));o.put("confidence_label",c.getString(11));
+                o.put("evidence_count",c.getInt(12));o.put("screen_active_ratio",c.getDouble(13));o.put("human_probability",c.getDouble(14));
+                o.put("inference_version",c.getString(15));o.put("user_feedback",c.getString(16));o.put("user_correction",c.getString(17));
+                JSONArray ids=new JSONArray();
+                Cursor ev=episodeEvidence(c.getString(0));
+                try{while(ev.moveToNext())ids.put(ev.getLong(0));}finally{ev.close();}
+                o.put("raw_event_ids",ids);a.put(o);
+            }
+        }finally{c.close();}
+        return a;
     }
 
     private static void csvRow(StringBuilder b,String[] cells) {
