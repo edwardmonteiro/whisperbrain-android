@@ -71,6 +71,14 @@ public class MainActivity extends Activity {
         summary=text("",15,Color.WHITE,false); summary.setLineSpacing(0,1.25f); root.addView(summary);
 
         space(28);
+        section("LIFE");
+        TextView eventsCard=card("Turn raw telemetry into explainable human events and a reconstructed daily story.");
+        root.addView(eventsCard);
+        Button eventsButton=button("Open Life → Events");
+        eventsButton.setOnClickListener(v->startActivity(new Intent(this,HumanEventsActivity.class)));
+        root.addView(eventsButton);
+
+        space(28);
         section("TRAINING DATA");
         TextView lab=card("Turn phone sessions into permissioned AI training trajectories.");
         root.addView(lab);
@@ -232,7 +240,9 @@ public class MainActivity extends Activity {
             write(dir,"app_sessions.csv",db.appSessionsCsv(),uris);
             write(dir,"phone_sessions.csv",db.phoneSessionsCsv(),uris);
             write(dir,"daily_summary.csv",db.dailySummaryCsv(),uris);
-            write(dir,"human_episodes.csv",db.humanEpisodesCsv(),uris);
+            write(dir,"human_episodes.csv",db.inferredEpisodesCsv(),uris);
+            write(dir,"episode_evidence.csv",db.episodeEvidenceCsv(),uris);
+            write(dir,"training_episodes.csv",db.humanEpisodesCsv(),uris);
             write(dir,"lifegraph_export.json",db.fullExportJson().toString(2),uris);
             Intent share=new Intent(Intent.ACTION_SEND_MULTIPLE);
             share.setType("*/*"); share.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
