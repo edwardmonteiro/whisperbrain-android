@@ -13,6 +13,7 @@
         android:theme="@style/AppTheme">
         <activity android:name=".ActivityMonitorActivity" android:exported="false" />
         <activity android:name=".TrainingDataLabActivity" android:exported="false" />
+        <activity android:name=".HumanEventsActivity" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
