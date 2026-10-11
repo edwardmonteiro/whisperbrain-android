@@ -15,7 +15,6 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
         if(session==null)return;
 
         int type=event.getEventType();
-        if(!supported(type))return;
 
         String pkg=event.getPackageName()==null?"":event.getPackageName().toString();
         long now=System.currentTimeMillis();
@@ -36,6 +35,8 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
             }catch(Exception ignored){}
             return;
         }
+
+        if(!supported(type))return;
 
         try{
             JSONObject before=captureState();
@@ -68,8 +69,7 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
         return type==AccessibilityEvent.TYPE_VIEW_CLICKED ||
                 type==AccessibilityEvent.TYPE_VIEW_LONG_CLICKED ||
                 type==AccessibilityEvent.TYPE_VIEW_SCROLLED ||
-                type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
-                type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+                type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED;
     }
 
     private JSONObject captureState()throws Exception{
@@ -88,8 +88,7 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
         if(type==AccessibilityEvent.TYPE_VIEW_CLICKED)action="tap";
         else if(type==AccessibilityEvent.TYPE_VIEW_LONG_CLICKED)action="long_press";
         else if(type==AccessibilityEvent.TYPE_VIEW_SCROLLED)action="swipe";
-        else if(type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)action="type";
-        else action="window_change";
+        else action="type";
         a.put("type",action);
 
         AccessibilityNodeInfo src=e.getSource();
@@ -98,7 +97,7 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
         String text=JSONObject.NULL.toString();
         try{
             if(src!=null){
-                target=src.getViewIdResourceName();
+                target=findNodePath(src);
                 Rect r=new Rect();src.getBoundsInScreen(r);
                 xy.put((r.left+r.right)/2);xy.put((r.top+r.bottom)/2);
                 if("type".equals(action)){
@@ -110,6 +109,31 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
         a.put("xy",xy.length()==2?xy:JSONObject.NULL);
         a.put("text","type".equals(action)?"[REDACTED]":JSONObject.NULL);
         return a;
+    }
+
+    private String findNodePath(AccessibilityNodeInfo target){
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        if(root==null)return target.getViewIdResourceName();
+        try{
+            String found=findPath(root,target,"0",0);
+            if(found!=null)return found;
+            return target.getViewIdResourceName();
+        }finally{root.recycle();}
+    }
+
+    private String findPath(AccessibilityNodeInfo node,AccessibilityNodeInfo target,String path,int depth){
+        if(node==null||depth>8)return null;
+        if(node.equals(target))return path;
+        int count=Math.min(node.getChildCount(),40);
+        for(int i=0;i<count;i++){
+            AccessibilityNodeInfo child=node.getChild(i);
+            if(child==null)continue;
+            try{
+                String found=findPath(child,target,path+"/"+i,depth+1);
+                if(found!=null)return found;
+            }finally{child.recycle();}
+        }
+        return null;
     }
 
     private String redactionStatus(JSONObject state,JSONObject action){
