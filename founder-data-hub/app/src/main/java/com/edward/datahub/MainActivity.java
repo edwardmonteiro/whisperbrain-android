@@ -89,6 +89,14 @@ public class MainActivity extends Activity {
         root.addView(episodeCount);
 
         space(28);
+        section("ACTION DATASET");
+        TextView actionCard=card("Convert app transitions into state → action → next state sequences for agent training.");
+        root.addView(actionCard);
+        Button actionButton=button("Preview latest action trajectory");
+        actionButton.setOnClickListener(v->showActionTrajectoryPreview());
+        root.addView(actionButton);
+
+        space(28);
         section("CONTROL");
         Button toggle=button("Start / stop local capture"); toggle.setOnClickListener(v->toggleCapture()); root.addView(toggle);
         Button usage=button("Grant Usage Access"); usage.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))); root.addView(usage);
@@ -255,6 +263,81 @@ public class MainActivity extends Activity {
         File file=new File(dir,name);
         try(FileOutputStream out=new FileOutputStream(file)){out.write(content.getBytes("UTF-8"));}
         uris.add(FileProvider.getUriForFile(this,"com.edward.datahub.files",file));
+    }
+
+    private void showActionTrajectoryPreview(){
+        Cursor p=db.phoneSessionsBetween(EventDb.DayBounds.startOfToday(),System.currentTimeMillis()+1);
+        long start=0,end=0;
+        try{
+            while(p.moveToNext()){
+                if(p.getLong(3)>=60){start=p.getLong(1);end=p.getLong(2);}
+            }
+        }finally{p.close();}
+
+        if(start==0){
+            new AlertDialog.Builder(this).setTitle("No trajectory yet")
+                    .setMessage("Use the phone for a few minutes, lock it to close the session, then return here.")
+                    .setPositiveButton("OK",null).show();
+            return;
+        }
+
+        Cursor a=db.appSessionsBetween(start,end);
+        ArrayList<String> apps=new ArrayList<>();
+        try{
+            while(a.moveToNext()){
+                if(!"human".equals(a.getString(7)))continue;
+                apps.add(a.getString(5));
+            }
+        }finally{a.close();}
+
+        if(apps.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("No app sequence found").setPositiveButton("OK",null).show();
+            return;
+        }
+
+        StringBuilder b=new StringBuilder();
+        b.append("ACTION TRAJECTORY\n\n");
+        String previous="DEVICE_UNLOCKED";
+        for(int i=0;i<apps.size();i++){
+            String app=apps.get(i);
+            String next=i+1<apps.size()?apps.get(i+1):"SCREEN_OFF";
+            String action=i==0?"OPEN_APP":"SWITCH_APP";
+            b.append("State: ").append(previous).append("\n");
+            b.append("Action: ").append(action).append(" → ").append(app).append("\n");
+            b.append("Next: ").append(next).append("\n\n");
+            previous=app;
+        }
+        b.append("Privacy\nNo UI text, messages, screenshots, audio or screen content.");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Latest action trajectory")
+                .setMessage(b.toString())
+                .setPositiveButton("Label goal",(d,w)->labelActionTrajectory(start,end,apps))
+                .setNegativeButton("Close",null).show();
+    }
+
+    private void labelActionTrajectory(long start,long end,ArrayList<String> apps){
+        final String[] goals={"Buy something","Research something","Work","Learn","Communicate","Navigate","Other"};
+        new AlertDialog.Builder(this).setTitle("What was the goal?")
+                .setItems(goals,(d,w)->labelActionOutcome(start,end,apps,goals[w])).show();
+    }
+
+    private void labelActionOutcome(long start,long end,ArrayList<String> apps,String goal){
+        final String[] outcomes={"Completed","Abandoned","Still deciding"};
+        new AlertDialog.Builder(this).setTitle("Outcome")
+                .setItems(outcomes,(d,w)->{
+                    StringBuilder sequence=new StringBuilder();
+                    for(int i=0;i<apps.size();i++){
+                        if(i>0)sequence.append(" → ");
+                        sequence.append(apps.get(i));
+                    }
+                    new AlertDialog.Builder(this)
+                            .setTitle("Agent training sample")
+                            .setMessage("Goal\n"+goal+"\n\nSequence\n"+sequence+"\n\nOutcome\n"+outcomes[w]+
+                                    "\n\nDuration\n"+DailySummaryRules.formatDuration((end-start)/1000)+
+                                    "\n\nConsent\nNot licensed")
+                            .setPositiveButton("Done",null).show();
+                }).show();
     }
 
     private void confirmDelete(){
