@@ -8,6 +8,10 @@ import org.json.*;
 
 public class PathCaptureAccessibilityService extends AccessibilityService {
     private final Handler handler=new Handler(Looper.getMainLooper());
+    private JSONObject lastStableState=null;
+    private String lastStablePackage="";
+    private String lastActionKey="";
+    private long lastActionAt=0;
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event){
         if(event==null)return;
@@ -18,6 +22,13 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
 
         String pkg=event.getPackageName()==null?"":event.getPackageName().toString();
         long now=System.currentTimeMillis();
+
+        if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED){
+            try{
+                lastStableState=captureState(pkg);
+                lastStablePackage=pkg;
+            }catch(Exception ignored){}
+        }
 
         if(PathPrivacyGuard.isBlocked(this,pkg)){
             try{
@@ -39,8 +50,14 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
         if(!supported(type))return;
 
         try{
-            JSONObject before=captureState();
             JSONObject action=actionFrom(event);
+            String actionKey=pkg+"|"+action.optString("type","")+"|"+String.valueOf(action.opt("target_node"));
+            if(actionKey.equals(lastActionKey) && now-lastActionAt<180)return;
+            lastActionKey=actionKey;
+            lastActionAt=now;
+
+            JSONObject current=captureState(pkg);
+            JSONObject before=(lastStableState!=null && pkg.equals(lastStablePackage))?lastStableState:current;
             final JSONObject record=new JSONObject();
             record.put("session_id",session.id);
             record.put("goal",session.goal);
@@ -54,10 +71,12 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
 
             handler.postDelayed(()->{
                 try{
-                    JSONObject after=captureState();
+                    JSONObject after=captureState(pkg);
                     record.put("result_state",after);
                     record.put("outcome",stateChanged(before,after)?"success":"unknown");
                     PathSessionStore.append(this,record);
+                    lastStableState=after;
+                    lastStablePackage=pkg;
                 }catch(Exception ignored){}
             },220);
         }catch(Exception ignored){}
@@ -72,12 +91,12 @@ public class PathCaptureAccessibilityService extends AccessibilityService {
                 type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED;
     }
 
-    private JSONObject captureState()throws Exception{
+    private JSONObject captureState(String pkg)throws Exception{
         AccessibilityNodeInfo root=getRootInActiveWindow();
         if(root==null){
             JSONObject o=new JSONObject();o.put("missing",true);return o;
         }
-        try{return A11yTreeSerializer.serialize(root);}
+        try{return A11yTreeSerializer.serialize(root,!PathPrivacyGuard.structuralOnly(pkg));}
         finally{root.recycle();}
     }
 
