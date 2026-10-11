@@ -12,6 +12,12 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme">
         <activity android:name=".ActivityMonitorActivity" android:exported="false" />
+        <activity android:name=".PathSessionActivity" android:exported="true" android:label="LifeGraph Path Capture">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <activity android:name=".TrainingDataLabActivity" android:exported="false" />
         <activity android:name=".HumanEventsActivity" android:exported="false" />
         <activity android:name=".SequenceLabActivity" android:exported="true" android:label="LifeGraph Sequence Lab">
