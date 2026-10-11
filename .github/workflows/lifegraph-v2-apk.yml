@@ -1,8 +1,8 @@
-name: LifeGraph V2 APK
+name: LifeGraph APK
 
 on:
   push:
-    branches: [ lifegraph-v2 ]
+    branches: [ lifegraph-v2, lifegraph-v5-path-capture ]
     paths:
       - 'founder-data-hub/**'
       - '.github/workflows/lifegraph-v2-apk.yml'
@@ -30,14 +30,14 @@ jobs:
         working-directory: founder-data-hub
         run: gradle --no-daemon testDebugUnitTest
 
-      - name: Build V2 debug APK
+      - name: Build debug APK
         working-directory: founder-data-hub
         run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LifeGraph-V2-debug
+          name: LifeGraph-Path-Capture-debug
           path: founder-data-hub/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -45,6 +45,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LifeGraph-V2-test-reports
+          name: LifeGraph-Path-Capture-test-reports
           path: founder-data-hub/app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
