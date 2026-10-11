@@ -8,10 +8,22 @@ public class PathPrivacyGuard {
     private static final Set<String> DEFAULT_PATTERNS=new LinkedHashSet<>(Arrays.asList(
             "authenticator","bitwarden","onepassword","1password","lastpass","keepass",
             "wallet","payments","nubank","itau","bradesco","santander","caixa","banco","bank",
+            "com.google.android.gm","com.microsoft.office.outlook","com.samsung.android.email",
+            "com.whatsapp","org.telegram.messenger","org.thoughtcrime.securesms",
+            "com.google.android.apps.messaging","com.samsung.android.messaging","com.android.mms",
+            "com.openai.chatgpt","com.anthropic.claude",
             "whatsapp","telegram","signal","messages","gmail","outlook"
     ));
 
+    public static boolean defaultBlocked(String pkg){
+        if(pkg==null)return false;
+        String p=pkg.toLowerCase(Locale.US);
+        for(String pattern:DEFAULT_PATTERNS)if(!pattern.isEmpty()&&p.contains(pattern))return true;
+        return false;
+    }
+
     public static boolean isBlocked(Context c,String pkg){
+        if(defaultBlocked(pkg))return true;
         if(pkg==null)return false;
         String p=pkg.toLowerCase(Locale.US);
         for(String pattern:patterns(c))if(!pattern.isEmpty()&&p.contains(pattern))return true;
@@ -46,8 +58,11 @@ public class PathPrivacyGuard {
         if(sensitive)return "[REDACTED]";
         String s=cs.toString();
         if(s.length()>160)s=s.substring(0,160);
+        if(Pattern.compile("(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}").matcher(s).find())return "[REDACTED]";
         if(Pattern.compile("(?<!\\d)\\d{4,8}(?!\\d)").matcher(s).find())return "[REDACTED]";
-        if(Pattern.compile("(?:\\d[ -]?){13,19}").matcher(s).find())return "[REDACTED]";
+        if(Pattern.compile("(?:\\d[ -]?){10,19}").matcher(s).find())return "[REDACTED]";
+        String lower=s.toLowerCase(Locale.US);
+        if(lower.contains("current location")||lower.contains("signed in as")||lower.contains("verification code"))return "[REDACTED]";
         return s;
     }
 }
