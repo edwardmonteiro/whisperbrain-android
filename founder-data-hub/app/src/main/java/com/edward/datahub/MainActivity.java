@@ -251,12 +251,103 @@ public class MainActivity extends Activity {
             write(dir,"human_episodes.csv",db.inferredEpisodesCsv(),uris);
             write(dir,"episode_evidence.csv",db.episodeEvidenceCsv(),uris);
             write(dir,"training_episodes.csv",db.humanEpisodesCsv(),uris);
+            write(dir,"action_trajectories.csv",buildActionTrajectoriesCsv(),uris);
+            write(dir,"action_trajectories.json",buildActionTrajectoriesJson(),uris);
             write(dir,"lifegraph_export.json",db.fullExportJson().toString(2),uris);
             Intent share=new Intent(Intent.ACTION_SEND_MULTIPLE);
             share.setType("*/*"); share.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
             share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(share,"Export LifeGraph V2.1"));
         }catch(Exception e){Toast.makeText(this,"Export failed: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+    }
+
+    private String buildActionTrajectoriesCsv(){
+        StringBuilder b=new StringBuilder("trajectory_id,phone_session_id,timestamp,state,action,next_state,app_name,goal,outcome,consent_scope\n");
+        long start=EventDb.DayBounds.startOfToday(),end=System.currentTimeMillis()+1;
+        Cursor p=db.phoneSessionsBetween(start,end);
+        try{
+            while(p.moveToNext()){
+                String phoneId=p.getString(0);
+                long ps=p.getLong(1),pe=p.getLong(2);
+                Cursor a=db.appSessionsBetween(ps,pe);
+                ArrayList<String[]> apps=new ArrayList<>();
+                try{
+                    while(a.moveToNext()){
+                        if(!"human".equals(a.getString(7)))continue;
+                        apps.add(new String[]{a.getString(5),String.valueOf(a.getLong(1))});
+                    }
+                }finally{a.close();}
+                String trajectoryId="phone-"+phoneId;
+                String previous="DEVICE_UNLOCKED";
+                for(int i=0;i<apps.size();i++){
+                    String app=apps.get(i)[0];
+                    String next=i+1<apps.size()?apps.get(i+1)[0]:"SCREEN_OFF";
+                    String action=i==0?"OPEN_APP":"SWITCH_APP";
+                    String[] row={trajectoryId,phoneId,EventDb.iso(Long.parseLong(apps.get(i)[1])),previous,action,next,app,"","","not_licensed"};
+                    for(int j=0;j<row.length;j++){
+                        String s=row[j]==null?"":row[j].replace(""","""");
+                        b.append(""").append(s).append(""");
+                        if(j<row.length-1)b.append(",");
+                    }
+                    b.append("\n");
+                    previous=app;
+                }
+            }
+        }finally{p.close();}
+        return b.toString();
+    }
+
+    private String buildActionTrajectoriesJson() throws Exception{
+        org.json.JSONArray trajectories=new org.json.JSONArray();
+        long start=EventDb.DayBounds.startOfToday(),end=System.currentTimeMillis()+1;
+        Cursor p=db.phoneSessionsBetween(start,end);
+        try{
+            while(p.moveToNext()){
+                String phoneId=p.getString(0);
+                long ps=p.getLong(1),pe=p.getLong(2);
+                Cursor a=db.appSessionsBetween(ps,pe);
+                ArrayList<String[]> apps=new ArrayList<>();
+                try{
+                    while(a.moveToNext()){
+                        if(!"human".equals(a.getString(7)))continue;
+                        apps.add(new String[]{a.getString(5),String.valueOf(a.getLong(1))});
+                    }
+                }finally{a.close();}
+                if(apps.isEmpty())continue;
+
+                org.json.JSONObject t=new org.json.JSONObject();
+                t.put("trajectory_id","phone-"+phoneId);
+                t.put("phone_session_id",phoneId);
+                t.put("start_time",EventDb.iso(ps));
+                t.put("end_time",EventDb.iso(pe));
+                t.put("goal",org.json.JSONObject.NULL);
+                t.put("outcome",org.json.JSONObject.NULL);
+                t.put("consent_scope","not_licensed");
+                t.put("privacy","App transitions only. No UI text, messages, screenshots, audio or screen content.");
+
+                org.json.JSONArray steps=new org.json.JSONArray();
+                String previous="DEVICE_UNLOCKED";
+                for(int i=0;i<apps.size();i++){
+                    String app=apps.get(i)[0];
+                    String next=i+1<apps.size()?apps.get(i+1)[0]:"SCREEN_OFF";
+                    org.json.JSONObject s=new org.json.JSONObject();
+                    s.put("timestamp",EventDb.iso(Long.parseLong(apps.get(i)[1])));
+                    s.put("state",previous);
+                    s.put("action",i==0?"OPEN_APP":"SWITCH_APP");
+                    s.put("next_state",next);
+                    s.put("app_name",app);
+                    steps.put(s);
+                    previous=app;
+                }
+                t.put("steps",steps);
+                trajectories.put(t);
+            }
+        }finally{p.close();}
+        org.json.JSONObject root=new org.json.JSONObject();
+        root.put("schema_version","lam-actions-v1");
+        root.put("generated_at",EventDb.iso(System.currentTimeMillis()));
+        root.put("trajectories",trajectories);
+        return root.toString(2);
     }
 
     private void write(File dir,String name,String content,ArrayList<Uri> uris)throws Exception{
