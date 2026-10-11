@@ -45,6 +45,12 @@ public class PathPrivacyGuard {
         return c.getSharedPreferences("path_privacy",Context.MODE_PRIVATE).getString("custom_blocklist","");
     }
 
+    public static boolean structuralOnly(String pkg){
+        if(pkg==null)return false;
+        String p=pkg.toLowerCase(Locale.US);
+        return p.equals("com.android.systemui") || p.equals("com.sec.android.app.launcher");
+    }
+
     public static boolean sensitiveField(String viewId,boolean password,boolean editable){
         if(password)return true;
         if(editable)return true;
