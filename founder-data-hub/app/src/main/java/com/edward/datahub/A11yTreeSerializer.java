@@ -11,10 +11,14 @@ public final class A11yTreeSerializer {
     private A11yTreeSerializer(){}
 
     public static JSONObject serialize(AccessibilityNodeInfo root)throws JSONException{
-        return serializeNode(root,0,"0");
+        return serialize(root,true);
     }
 
-    private static JSONObject serializeNode(AccessibilityNodeInfo node,int depth,String path)throws JSONException{
+    public static JSONObject serialize(AccessibilityNodeInfo root,boolean includeText)throws JSONException{
+        return serializeNode(root,0,"0",includeText);
+    }
+
+    private static JSONObject serializeNode(AccessibilityNodeInfo node,int depth,String path,boolean includeText)throws JSONException{
         JSONObject o=new JSONObject();
         if(node==null){o.put("missing",true);return o;}
         if(depth>MAX_DEPTH){o.put("truncated",true);return o;}
@@ -25,8 +29,8 @@ public final class A11yTreeSerializer {
         o.put("path",path);
         o.put("class",safe(node.getClassName()));
         o.put("view_id",viewId==null?JSONObject.NULL:viewId);
-        o.put("text",PathPrivacyGuard.sanitizeText(node.getText(),sensitive));
-        o.put("content_desc",PathPrivacyGuard.sanitizeText(node.getContentDescription(),sensitive));
+        o.put("text",includeText?PathPrivacyGuard.sanitizeText(node.getText(),sensitive):"");
+        o.put("content_desc",includeText?PathPrivacyGuard.sanitizeText(node.getContentDescription(),sensitive):"");
         o.put("editable",node.isEditable());
         o.put("password",node.isPassword());
         o.put("clickable",node.isClickable());
@@ -46,7 +50,7 @@ public final class A11yTreeSerializer {
         for(int i=0;i<count;i++){
             AccessibilityNodeInfo child=node.getChild(i);
             if(child==null)continue;
-            try{children.put(serializeNode(child,depth+1,path+"/"+i));}
+            try{children.put(serializeNode(child,depth+1,path+"/"+i,includeText));}
             finally{child.recycle();}
         }
         if(node.getChildCount()>MAX_CHILDREN)o.put("children_truncated",true);
