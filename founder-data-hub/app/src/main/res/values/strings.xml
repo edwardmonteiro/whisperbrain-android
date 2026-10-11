@@ -2,4 +2,5 @@
     <string name="app_name">LifeGraph Founder</string>
     <string name="capture_channel_name">Local capture</string>
     <string name="capture_channel_description">Visible status for local behavioral capture</string>
+    <string name="path_capture_accessibility_desc">LifeGraph Path Capture records sanitized UI state and structural actions only during sessions explicitly started by the user.</string>
 </resources>
